@@ -1,5 +1,5 @@
 #include "pch.h"
 #include "Figure.h"
 
-random_device FigureHelper::random;
-mt19937 FigureHelper::mt(random());
+std::random_device FigureHelper::random;
+std::mt19937 FigureHelper::mt(random());
