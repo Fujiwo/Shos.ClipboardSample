@@ -2,18 +2,45 @@
 #include <afx.h>
 #include <random>
 
-class NullBrushSelector
+class GdiObjectSelectorBase
 {
 	CDC& dc;
-	CGdiObject* const oldBrush;
+	CGdiObject* const oldGdiObject;
 
 public:
-	NullBrushSelector(CDC& dc) : dc(dc), oldBrush(dc.SelectStockObject(NULL_BRUSH))
+	GdiObjectSelectorBase(CDC& dc, CGdiObject* oldGdiObject) : dc(dc), oldGdiObject(oldGdiObject)
 	{}
 
-	~NullBrushSelector()
+	virtual ~GdiObjectSelectorBase()
 	{
-		dc.SelectObject(oldBrush);
+		dc.SelectObject(oldGdiObject);
+	}
+};
+
+class StockObjectSelector : public GdiObjectSelectorBase
+{
+public:
+	StockObjectSelector(CDC& dc, int stockObjectIndex) : GdiObjectSelectorBase(dc, dc.SelectStockObject(stockObjectIndex))
+	{}
+};
+
+class GdiObjectSelector : public GdiObjectSelectorBase
+{
+public:
+	GdiObjectSelector(CDC& dc, CGdiObject& gdiObject) : GdiObjectSelectorBase(dc, dc.SelectObject(&gdiObject))
+	{}
+};
+
+struct FigureAttribute
+{
+	COLORREF color;
+
+	void Serialize(CArchive& ar)
+	{
+		if (ar.IsStoring())
+			ar << color;
+		else
+			ar >> color;
 	}
 };
 
@@ -21,8 +48,27 @@ class Figure : public CObject
 {
 	DECLARE_SERIAL(Figure)
 
+	FigureAttribute attribute;
+
 public:
-	virtual void Draw(CDC& dc) {}
+	void Draw(CDC& dc)
+	{
+		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
+		CPen pen(PS_SOLID, 0, attribute.color);
+		GdiObjectSelector gdiObjectSelector(dc, pen);
+
+		DrawShape(dc);
+	}
+
+	virtual void Serialize(CArchive& ar) override
+	{
+		CObject::Serialize(ar);
+		attribute.Serialize(ar);
+	}
+
+protected:
+	virtual void DrawShape(CDC& dc)
+	{}
 };
 
 class DotFigure : public Figure
@@ -39,13 +85,6 @@ public:
 	DotFigure(const CPoint& position) : position(position)
 	{}
 
-	virtual void Draw(CDC& dc) override
-	{
-		class NullBrushSelector brushSelector(dc);
-		const CSize size(radius, radius);
-		dc.Ellipse(CRect(position - size, position + size));
-	}
-
 	virtual void Serialize(CArchive& ar) override
 	{
 		Figure::Serialize(ar);
@@ -54,6 +93,13 @@ public:
 			ar << position;
 		else
 			ar >> position;
+	}
+
+protected:
+	virtual void DrawShape(CDC& dc)
+	{
+		const CSize size(radius, radius);
+		dc.Ellipse(CRect(position - size, position + size));
 	}
 };
 
@@ -70,12 +116,6 @@ public:
 	LineFigure(CPoint start, CPoint end) : start(start), end(end)
 	{}
 
-	virtual void Draw(CDC& dc) override
-	{
-		dc.MoveTo(start);
-		dc.LineTo(end);
-	}
-
 	virtual void Serialize(CArchive& ar) override
 	{
 		Figure::Serialize(ar);
@@ -84,6 +124,13 @@ public:
 			ar << start << end;
 		else
 			ar >> start >> end;
+	}
+
+protected:
+	virtual void DrawShape(CDC& dc)
+	{
+		dc.MoveTo(start);
+		dc.LineTo(end);
 	}
 };
 
@@ -100,12 +147,6 @@ public:
 	RectangleFigure(const CRect& position) : position(position)
 	{}
 
-	virtual void Draw(CDC& dc) override
-	{
-		class NullBrushSelector brushSelector(dc);
-		dc.Rectangle(&position);
-	}
-
 	virtual void Serialize(CArchive& ar) override
 	{
 		Figure::Serialize(ar);
@@ -114,6 +155,12 @@ public:
 			ar << position;
 		else
 			ar >> position;
+	}
+
+protected:
+	virtual void DrawShape(CDC& dc)
+	{
+		dc.Rectangle(&position);
 	}
 };
 
@@ -130,12 +177,6 @@ public:
 	EllipseFigure(const CRect& position) : position(position)
 	{}
 
-	virtual void Draw(CDC& dc) override
-	{
-		class NullBrushSelector brushSelector(dc);
-		dc.Ellipse(&position);
-	}
-
 	virtual void Serialize(CArchive& ar) override
 	{
 		Figure::Serialize(ar);
@@ -144,6 +185,12 @@ public:
 			ar << position;
 		else
 			ar >> position;
+	}
+
+protected:
+	virtual void DrawShape(CDC& dc)
+	{
+		dc.Ellipse(&position);
 	}
 };
 
@@ -164,19 +211,28 @@ private:
 	{
 		const long figureKindNumber = 4;
 
+		Figure* figure = nullptr;
+		
 		switch (RandomValue(0, figureKindNumber - 1)) {
 		case 0:
-			return new DotFigure(RandomPosition(area));
+			figure = new DotFigure(RandomPosition(area));
+			break;
 		case 1:
-			return new LineFigure(RandomPosition(area), RandomPosition(area));
+			figure = new LineFigure(RandomPosition(area), RandomPosition(area));
+			break;
 		case 2:
-			return new RectangleFigure(CRect(RandomPosition(area), RandomPosition(area)));
+			figure = new RectangleFigure(CRect(RandomPosition(area), RandomPosition(area)));
+			break;
 		case 3:
-			return new EllipseFigure(CRect(RandomPosition(area), RandomPosition(area)));
+			figure = new EllipseFigure(CRect(RandomPosition(area), RandomPosition(area)));
+			break;
 		default:
 			ASSERT(false);
-			return nullptr;
+			figure = nullptr;
+			break;
 		}
+		figure->attribute.color = RandomColor();
+		return figure;
 	}
 
 	static CPoint RandomPosition(const CRect& area)
@@ -189,4 +245,9 @@ private:
 	{
 		return minimum + mt() % (maxmum - minimum + 1);
 	};
+
+	static COLORREF RandomColor()
+	{
+		return RGB(RandomValue(0, 255), RandomValue(0, 255), RandomValue(0, 255));
+	}
 };
