@@ -195,6 +195,7 @@
     <ClInclude Include="View.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ClipboardHelper.cpp" />
     <ClCompile Include="Document.cpp" />
     <ClCompile Include="Figure.cpp" />
     <ClCompile Include="MainFrame.cpp" />

@@ -19,14 +19,16 @@ public:
 
 class Figure : public CObject
 {
-public:
-	virtual ~Figure() = 0 {}
+	DECLARE_SERIAL(Figure)
 
+public:
 	virtual void Draw(CDC& dc) {}
 };
 
 class DotFigure : public Figure
 {
+	DECLARE_SERIAL(DotFigure)
+
 	const LONG radius = 10L;
 	CPoint position;
 		
@@ -43,10 +45,22 @@ public:
 		const CSize size(radius, radius);
 		dc.Ellipse(CRect(position - size, position + size));
 	}
+
+	virtual void Serialize(CArchive& ar) override
+	{
+		Figure::Serialize(ar);
+
+		if (ar.IsStoring())
+			ar << position;
+		else
+			ar >> position;
+	}
 };
 
 class LineFigure : public Figure
 {
+	DECLARE_SERIAL(LineFigure)
+
 	CPoint start, end;
 
 public:
@@ -61,10 +75,22 @@ public:
 		dc.MoveTo(start);
 		dc.LineTo(end);
 	}
+
+	virtual void Serialize(CArchive& ar) override
+	{
+		Figure::Serialize(ar);
+
+		if (ar.IsStoring())
+			ar << start << end;
+		else
+			ar >> start >> end;
+	}
 };
 
 class RectangleFigure : public Figure
 {
+	DECLARE_SERIAL(RectangleFigure)
+
 	CRect position;
 
 public:
@@ -79,10 +105,22 @@ public:
 		class NullBrushSelector brushSelector(dc);
 		dc.Rectangle(&position);
 	}
+
+	virtual void Serialize(CArchive& ar) override
+	{
+		Figure::Serialize(ar);
+
+		if (ar.IsStoring())
+			ar << position;
+		else
+			ar >> position;
+	}
 };
 
 class EllipseFigure : public Figure
 {
+	DECLARE_SERIAL(EllipseFigure)
+	
 	CRect position;
 
 public:
@@ -97,6 +135,16 @@ public:
 		class NullBrushSelector brushSelector(dc);
 		dc.Ellipse(&position);
 	}
+
+	virtual void Serialize(CArchive& ar) override
+	{
+		Figure::Serialize(ar);
+
+		if (ar.IsStoring())
+			ar << position;
+		else
+			ar >> position;
+	}
 };
 
 class FigureHelper
@@ -105,7 +153,7 @@ class FigureHelper
 	static std::mt19937		  mt;
 
 public:
-	static void AddRandomFigures(CTypedPtrArray<CObArray, Figure*>& figures, size_t count, const CRect& area)
+	static void AddRandomFigures(CArray<Figure*>& figures, size_t count, const CRect& area)
 	{
 		for (size_t counter = 0; counter < count; counter++)
 			figures.Add(GetRandomFigure(area));

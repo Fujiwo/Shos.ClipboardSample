@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "ClipboardHelper.h"
+
 class View : public CView
 {
 	DECLARE_DYNCREATE(View)
@@ -15,9 +17,33 @@ public:
 		if (document == nullptr)
 			return;
 
-		const size_t figureCount = 10;
-		document->AddDummyData(figureCount);
 		document->Draw(*pDC);
+	}
+	
+
+	afx_msg void OnEditCopy()
+	{
+		auto document = GetDocument();
+		ASSERT_VALID(document);
+		if (document == nullptr)
+			return;
+
+		ClipboardHelper::OnEditCopy(*document, *this, document->GetSize(), [&](CDC& dc) { document->Draw(dc); });
+	}
+
+	afx_msg void OnEditPaste()
+	{
+		auto document = GetDocument();
+		ASSERT_VALID(document);
+		if (document == nullptr)
+			return;
+
+		ClipboardHelper::OnEditPaste(*document, *this);
+	}
+
+	afx_msg void OnDestroyClipboard()
+	{
+		ClipboardHelper::OnDestroyClipboard();
 	}
 	
 	DECLARE_MESSAGE_MAP()

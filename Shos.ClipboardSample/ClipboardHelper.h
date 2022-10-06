@@ -5,17 +5,83 @@
 
 class ClipboardHelper
 {
+    static HGLOBAL globalMemoryHandle;
+	
 public:
-    static void CopyToClipboard(CSize size, std::function<void(CDC&)> draw)
+    static void OnEditCopy(CDocument& document, CWnd& view, CSize size, std::function<void(CDC&)> draw)
     {
-        if (::OpenClipboard(nullptr)) {
+        if (view.OpenClipboard()) {
             ::EmptyClipboard();
+            CopyMetaFileToClipboard(document, view, draw);
             CopyImageToClipboard(size, draw);
+            CopyDataToClipboard(document);
             ::CloseClipboard();
         }
     }
 
+    static void OnEditPaste(CDocument& document, CWnd& view)
+    {
+        if (view.OpenClipboard()) {
+            if (AddDataFromClipboard(document)) {
+                document.SetModifiedFlag();
+                view.Invalidate();
+            }
+            ::CloseClipboard();
+        }
+    }
+	
+    static void OnDestroyClipboard()
+    {
+        // on WM_DESTROYCLIPBOARD
+        if (globalMemoryHandle != nullptr) {
+            ::GlobalUnlock(globalMemoryHandle);
+            ::GlobalFree(globalMemoryHandle);
+            globalMemoryHandle = nullptr;
+        }
+    }
+
 private:
+    static void CopyMetaFileToClipboard(CDocument& document, CWnd& view, std::function<void(CDC&)> draw)
+    {
+        CClientDC   clientDC(&view);
+        CMetaFileDC metaDC;
+        metaDC.CreateEnhanced(&clientDC, NULL, NULL, NULL);
+        draw(metaDC);
+        const HENHMETAFILE enhancedMetaFileHandle = metaDC.CloseEnhanced();
+
+        ::SetClipboardData(CF_ENHMETAFILE, CopyEnhMetaFile(enhancedMetaFileHandle, NULL));
+        ::DeleteEnhMetaFile(enhancedMetaFileHandle);
+    }
+	
+    static void CopyDataToClipboard(CDocument& document)
+    {
+        CSharedFile sharedFile;
+        {
+            CArchive ar(&sharedFile, CArchive::store);
+            document.Serialize(ar);
+        }
+        globalMemoryHandle = sharedFile.Detach();
+
+        ::SetClipboardData(CF_PRIVATEFIRST, globalMemoryHandle);
+    }
+
+    static bool AddDataFromClipboard(CDocument& document)
+    {
+        const HANDLE clipboardData = ::GetClipboardData(CF_PRIVATEFIRST);
+        if (clipboardData == nullptr)
+            return false;
+
+        CSharedFile sharedFile;
+        sharedFile.SetHandle(clipboardData);
+        {
+            CArchive ar(&sharedFile, CArchive::load);
+            document.Serialize(ar);
+        }
+        sharedFile.Detach();
+        document.SetModifiedFlag();
+        return true;
+    }
+
     static bool CreateImage(CImage& image, CSize size, std::function<void(CDC&)> draw, COLORREF color = RGB(0x00, 0x00, 0x00))
     {
         if (!image.Create(size.cx, size.cy, 24))
@@ -84,4 +150,3 @@ private:
         return true;
     }
 };
-

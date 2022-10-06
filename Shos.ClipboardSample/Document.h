@@ -1,13 +1,12 @@
 ﻿#pragma once
 
 #include "Figure.h"
-#include "ClipboardHelper.h"
 
 class Document : public CDocument
 {
     DECLARE_DYNCREATE(Document)
         
-    CTypedPtrArray<CObArray, Figure*> figures;
+    CArray<Figure*> figures;
 
     const LONG size = 2000L;
 
@@ -19,8 +18,7 @@ public:
 
 	~Document() override
 	{
-		for (auto figure : *this)
-			delete figure;
+		RemoveAll();
 	}
 
 	iterator begin()
@@ -36,6 +34,14 @@ public:
 	void Add(Figure* figure)
 	{
 		figures.Add(figure);
+		SetModifiedFlag();
+	}
+
+	void RemoveAll()
+	{
+		for (auto figure : *this)
+			delete figure;
+		figures.RemoveAll();
 	}
 
     void Draw(CDC& dc)
@@ -44,15 +50,41 @@ public:
             figure->Draw(dc);
     }
 
+	virtual void Serialize(CArchive& ar)
+	{
+		if (ar.IsStoring()) {
+			ar.WriteCount(figures.GetCount());
+			for (auto figure : *this)
+				ar.WriteObject(figure);
+		}
+		else
+		{
+			auto count = ar.ReadCount();
+			for (DWORD_PTR counter = 0L; counter < count; counter++) {
+				Figure* figure = (Figure*)ar.ReadObject(NULL);
+				if (figure != nullptr)
+					figures.Add(figure);
+			}
+		}
+	}
+	
+	virtual void DeleteContents()
+	{
+		RemoveAll();
+		CDocument::DeleteContents();
+	}
+
     void AddDummyData(size_t count)
     {
 		FigureHelper::AddRandomFigures(figures, count, GetArea());
     }
 
-    afx_msg void OnEditCopy()
-    {
-        ClipboardHelper::CopyToClipboard(GetSize(), [&](CDC& dc) { Draw(dc); });
-    }
+	afx_msg void OnFigureRandom()
+	{
+		const size_t count = 100;
+		AddDummyData(count);
+		UpdateAllViews(nullptr);
+	}
 
     DECLARE_MESSAGE_MAP()
 };

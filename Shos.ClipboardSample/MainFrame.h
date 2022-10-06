@@ -6,5 +6,3 @@ class MainFrame : public CFrameWnd
 
 	DECLARE_MESSAGE_MAP()
 };
-
-
