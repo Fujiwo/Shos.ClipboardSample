@@ -34,13 +34,14 @@ public:
 struct FigureAttribute
 {
 	COLORREF color;
+	int      penWidth;
 
 	void Serialize(CArchive& ar)
 	{
 		if (ar.IsStoring())
-			ar << color;
+			ar << color << penWidth;
 		else
-			ar >> color;
+			ar >> color >> penWidth;
 	}
 };
 
@@ -54,7 +55,7 @@ public:
 	void Draw(CDC& dc)
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
-		CPen pen(PS_SOLID, 0, attribute.color);
+		CPen pen(PS_SOLID, attribute.penWidth, attribute.color);
 		GdiObjectSelector gdiObjectSelector(dc, pen);
 
 		DrawShape(dc);
@@ -231,7 +232,8 @@ private:
 			figure = nullptr;
 			break;
 		}
-		figure->attribute.color = RandomColor();
+		figure->attribute.color    = RandomColor();
+		figure->attribute.penWidth = RandomValue(0, 3);
 		return figure;
 	}
 

@@ -81,7 +81,7 @@ public:
 
 	afx_msg void OnFigureRandom()
 	{
-		const size_t count = 100;
+		const size_t count = 1000;
 		AddDummyData(count);
 		UpdateAllViews(nullptr);
 	}
