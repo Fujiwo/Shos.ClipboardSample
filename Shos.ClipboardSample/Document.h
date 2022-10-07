@@ -37,23 +37,11 @@ public:
 		SetModifiedFlag();
 	}
 
-	void RemoveAll()
-	{
-		for (auto figure : *this)
-			delete figure;
-		figures.RemoveAll();
-	}
-
     void Draw(CDC& dc) const
     {
-		//DrawArea(dc, GetSysColor(COLOR_WINDOW));
-		DrawFigures(dc);
-    }
-
-	//void DrawArea(CDC& dc, COLORREF color) const
-	//{
-	//	dc.FillSolidRect(GetArea(), color);
-	//}
+		for (auto figure : *this)
+			figure->Draw(dc);
+	}
 
 protected:
 	virtual void Serialize(CArchive& ar)
@@ -88,15 +76,16 @@ protected:
 	}
 
 private:
+	void RemoveAll()
+	{
+		for (auto figure : *this)
+			delete figure;
+		figures.RemoveAll();
+	}
+
 	void AddDummyData(size_t count)
 	{
 		FigureHelper::AddRandomFigures(figures, count, GetArea());
-	}
-
-	void DrawFigures(CDC& dc) const
-	{
-		for (auto figure : *this)
-			figure->Draw(dc);
 	}
 
     DECLARE_MESSAGE_MAP()

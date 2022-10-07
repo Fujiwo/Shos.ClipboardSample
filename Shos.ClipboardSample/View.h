@@ -7,53 +7,36 @@ class View : public CScrollView
 	DECLARE_DYNCREATE(View)
 
 protected:
-	Document* GetDocument() const
-	{ return reinterpret_cast<Document*>(m_pDocument); }
+	Document& GetDocument() const
+	{
+		ASSERT_VALID(m_pDocument);
+		return reinterpret_cast<Document&>(*m_pDocument);
+	}
 
 	virtual void View::OnInitialUpdate() override
 	{
 		CScrollView::OnInitialUpdate();
-		SetScrollSizes(MM_TEXT, GetDocument()->GetSize());
+		SetScrollSizes(MM_TEXT, GetDocument().GetSize());
 	}
 
 	virtual void OnDraw(CDC* pDC) override
 	{
-		auto document = GetDocument();
-		ASSERT_VALID(document);
-		if (document == nullptr)
-			return;
-
-		DrawDocument(*pDC, *document);
+		DrawFigures(*pDC, GetDocument());
 	}
-
-	//afx_msg BOOL OnEraseBkgnd(CDC* pDC)
-	//{
-	//	CRect clientRect;
-	//	GetClientRect(&clientRect);
-	//	pDC->FillSolidRect(&clientRect, ::GetSysColor(COLOR_3DFACE));
-	//	return TRUE;
-
-	//	//return CScrollView::OnEraseBkgnd(pDC);
-	//}
 
 	afx_msg void OnEditCopy()
 	{
-		auto document = GetDocument();
-		ASSERT_VALID(document);
-		if (document == nullptr)
-			return;
+		ClipboardHelper::OnEditCopy(GetDocument(), *this, GetDocument().GetSize(), ::GetSysColor(COLOR_WINDOW), [&](CDC& dc) { GetDocument().Draw(dc); });
+	}
 
-		ClipboardHelper::OnEditCopy(*document, *this, document->GetSize(), ::GetSysColor(COLOR_WINDOW), [&](CDC& dc) { document->Draw(dc); });
+	afx_msg void OnEditCut()
+	{
+		ClipboardHelper::OnEditCut(GetDocument(), *this, GetDocument().GetSize(), ::GetSysColor(COLOR_WINDOW), [&](CDC& dc) { GetDocument().Draw(dc); });
 	}
 
 	afx_msg void OnEditPaste()
 	{
-		auto document = GetDocument();
-		ASSERT_VALID(document);
-		if (document == nullptr)
-			return;
-
-		ClipboardHelper::OnEditPaste(*document, *this);
+		ClipboardHelper::OnEditPaste(GetDocument(), *this);
 	}
 
 	afx_msg void OnDestroyClipboard()
@@ -62,12 +45,6 @@ protected:
 	}
 
 private:
-	void DrawDocument(CDC& dc, const Document& document)
-	{
-		//document.DrawArea(dc, GetSysColor(COLOR_WINDOW));
-		DrawFigures(dc, document);
-	}
-
 	void DrawFigures(CDC& dc, const Document& document)
 	{
 		CRect clipBox;

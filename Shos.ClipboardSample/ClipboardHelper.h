@@ -8,26 +8,38 @@ class ClipboardHelper
     static HGLOBAL globalMemoryHandle;
 	
 public:
-    static void OnEditCopy(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
+    static bool OnEditCopy(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
     {
-        if (view.OpenClipboard()) {
-            ::EmptyClipboard();
-            CopyMetaFileToClipboard(document, view, draw);
-            CopyImageToClipboard(size, backgroundColor, draw);
-            CopyDataToClipboard(document);
-            ::CloseClipboard();
-        }
+        if (!view.OpenClipboard())
+            return false;
+        ::EmptyClipboard();
+        CopyMetaFileToClipboard(document, view, draw);
+        CopyImageToClipboard(size, backgroundColor, draw);
+        CopyDataToClipboard(document);
+        ::CloseClipboard();
+        return true;
     }
 
-    static void OnEditPaste(CDocument& document, CWnd& view)
+    static bool OnEditCut(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
     {
-        if (view.OpenClipboard()) {
-            if (AddDataFromClipboard(document)) {
-                document.SetModifiedFlag();
-                view.Invalidate();
-            }
-            ::CloseClipboard();
+        if (OnEditCopy(document, view, size, backgroundColor, draw)) {
+			document.DeleteContents();
+            view.Invalidate();
+            return true;
         }
+        return false;
+    }
+
+    static bool OnEditPaste(CDocument& document, CWnd& view)
+    {
+        if (!view.OpenClipboard())
+			return false;
+        if (AddDataFromClipboard(document)) {
+            document.SetModifiedFlag();
+            view.Invalidate();
+        }
+        ::CloseClipboard();
+        return true;
     }
 	
     static void OnDestroyClipboard()
