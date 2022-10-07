@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #ifndef __AFXWIN_H__
-	#error "PCH に対してこのファイルをインクルードする前に 'pch.h' をインクルードしてください"
+	#error "Include 'pch.h' before including this file for PCH"
 #endif
 
 class Application : public CWinApp

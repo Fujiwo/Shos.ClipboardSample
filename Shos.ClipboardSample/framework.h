@@ -1,31 +1,26 @@
 ﻿#pragma once
 
 #ifndef VC_EXTRALEAN
-#define VC_EXTRALEAN            // Windows ヘッダーから使用されていない部分を除外します。
+#define VC_EXTRALEAN
 #endif
 
 #include "targetver.h"
 
-#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS      // 一部の CString コンストラクターは明示的です。
+#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS
 
-// 一般的で無視しても安全な MFC の警告メッセージの一部の非表示を解除します。
 #define _AFX_ALL_WARNINGS
 
-#include <afxwin.h>         // MFC のコアおよび標準コンポーネント
-#include <afxext.h>         // MFC の拡張部分
-
-
-
-
+#include <afxwin.h>
+#include <afxext.h>
 
 #ifndef _AFX_NO_OLE_SUPPORT
-#include <afxdtctl.h>           // MFC の Internet Explorer 4 コモン コントロール サポート
+#include <afxdtctl.h>
 #endif
 #ifndef _AFX_NO_AFXCMN_SUPPORT
-#include <afxcmn.h>             // MFC の Windows コモン コントロール サポート
+#include <afxcmn.h>
 #endif // _AFX_NO_AFXCMN_SUPPORT
 
-#include <afxcontrolbars.h>     // MFC におけるリボンとコントロール バーのサポート
+#include <afxcontrolbars.h>
 
 
 

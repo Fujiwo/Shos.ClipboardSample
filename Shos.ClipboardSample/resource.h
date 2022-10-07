@@ -1,7 +1,4 @@
 ﻿//{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ で生成されたインクルード ファイル。
-// ShosClipboardSample.rc で使用
-//
 #define IDR_MAINFRAME                   128
 #define IDR_ShosClipboardSampleTYPE     130
 #define ID_FIGURE_RANDOM                32771
