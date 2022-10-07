@@ -43,7 +43,7 @@ protected:
 		if (document == nullptr)
 			return;
 
-		ClipboardHelper::OnEditCopy(*document, *this, document->GetSize(), [&](CDC& dc) { document->Draw(dc); });
+		ClipboardHelper::OnEditCopy(*document, *this, document->GetSize(), ::GetSysColor(COLOR_WINDOW), [&](CDC& dc) { document->Draw(dc); });
 	}
 
 	afx_msg void OnEditPaste()

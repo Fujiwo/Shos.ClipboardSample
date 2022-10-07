@@ -8,12 +8,12 @@ class ClipboardHelper
     static HGLOBAL globalMemoryHandle;
 	
 public:
-    static void OnEditCopy(CDocument& document, CWnd& view, CSize size, std::function<void(CDC&)> draw)
+    static void OnEditCopy(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
     {
         if (view.OpenClipboard()) {
             ::EmptyClipboard();
             CopyMetaFileToClipboard(document, view, draw);
-            CopyImageToClipboard(size, draw);
+            CopyImageToClipboard(size, backgroundColor, draw);
             CopyDataToClipboard(document);
             ::CloseClipboard();
         }
@@ -139,10 +139,10 @@ private:
         return imageHandle;
     }
 
-    static bool CopyImageToClipboard(CSize size, std::function<void(CDC&)> draw)
+    static bool CopyImageToClipboard(CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
     {
         CImage image;
-        CreateImage(image, size, draw, ::GetSysColor(COLOR_WINDOW));
+        CreateImage(image, size, draw, backgroundColor);
         HGLOBAL imageStream = ToImageStream(image);
         if (imageStream == nullptr)
             return false;
