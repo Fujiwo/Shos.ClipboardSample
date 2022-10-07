@@ -4,11 +4,8 @@
 
 class Document : public CDocument
 {
-    DECLARE_DYNCREATE(Document)
-        
-    CArray<Figure*> figures;
-
-    const LONG size = 2000L;
+    static const LONG size = 2000L;
+	CArray<Figure*> figures;
 
 public:
 	using iterator = Figure**;
@@ -88,5 +85,6 @@ private:
 		FigureHelper::AddRandomFigures(figures, count, GetArea());
 	}
 
-    DECLARE_MESSAGE_MAP()
+	DECLARE_DYNCREATE(Document)
+	DECLARE_MESSAGE_MAP()
 };

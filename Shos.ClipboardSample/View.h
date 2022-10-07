@@ -4,8 +4,6 @@
 
 class View : public CScrollView
 {
-	DECLARE_DYNCREATE(View)
-
 protected:
 	Document& GetDocument() const
 	{
@@ -65,5 +63,6 @@ private:
 		return intersection.IntersectRect(&figure.GetArea(), &clipBox);
 	}
 	
+	DECLARE_DYNCREATE(View)
 	DECLARE_MESSAGE_MAP()
 };

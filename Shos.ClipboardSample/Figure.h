@@ -23,11 +23,19 @@ struct FigureAttribute
 
 class Figure : public CObject
 {
-	DECLARE_SERIAL(Figure)
-
 	FigureAttribute attribute;
 
 public:
+	const FigureAttribute& Attribute() const
+	{
+		return attribute;
+	}
+
+	FigureAttribute& Attribute()
+	{
+		return attribute;
+	}
+
 	void Draw(CDC& dc) const
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
@@ -58,12 +66,12 @@ protected:
 	{
 		return CRect();
 	}
+
+	DECLARE_SERIAL(Figure)
 };
 
 class DotFigure : public Figure
 {
-	DECLARE_SERIAL(DotFigure)
-
 	const LONG radius = 10L;
 	CPoint position;
 		
@@ -95,12 +103,12 @@ protected:
 		const CSize size(radius, radius);
 		return CRect(position - size, position + size);
 	}
+
+	DECLARE_SERIAL(DotFigure)
 };
 
 class LineFigure : public Figure
 {
-	DECLARE_SERIAL(LineFigure)
-
 	CPoint start, end;
 
 public:
@@ -133,12 +141,13 @@ protected:
 		area.NormalizeRect();
 		return area;
 	}
+
+	DECLARE_SERIAL(LineFigure)
 };
 
 class RectangleFigureBase : public Figure
 {
-	DECLARE_SERIAL(RectangleFigureBase)
-
+protected:
 	CRect position;
 
 public:
@@ -163,12 +172,12 @@ protected:
 	{
 		return position;
 	}
+
+	DECLARE_SERIAL(RectangleFigureBase)
 };
 
 class RectangleFigure : public RectangleFigureBase
 {
-	DECLARE_SERIAL(RectangleFigure)
-
 public:
 	RectangleFigure()
 	{}
@@ -181,12 +190,12 @@ protected:
 	{
 		dc.Rectangle(&position);
 	}
+
+	DECLARE_SERIAL(RectangleFigure)
 };
 
 class EllipseFigure : public RectangleFigureBase
 {
-	DECLARE_SERIAL(EllipseFigure)
-
 public:
 	EllipseFigure()
 	{}
@@ -199,6 +208,8 @@ protected:
 	{
 		dc.Ellipse(&position);
 	}
+
+	DECLARE_SERIAL(EllipseFigure)
 };
 
 class FigureHelper
@@ -238,15 +249,14 @@ private:
 			figure = nullptr;
 			break;
 		}
-		figure->attribute.color    = RandomColor();
-		figure->attribute.penWidth = RandomValue(0, 3);
+		figure->Attribute().color = RandomColor();
+		figure->Attribute().penWidth = RandomValue(0, 5);
 		return figure;
 	}
 
 	static CPoint RandomPosition(const CRect& area)
 	{
-		POINT randomPosition = { RandomValue(area.left, area.right), RandomValue(area.top, area.bottom) };
-		return randomPosition;
+		return CPoint(RandomValue(area.left, area.right), RandomValue(area.top, area.bottom));
 	}
 
 	static LONG RandomValue(long minimum, long maxmum)
