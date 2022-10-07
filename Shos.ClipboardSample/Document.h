@@ -52,7 +52,7 @@ protected:
 		{
 			auto count = ar.ReadCount();
 			for (DWORD_PTR counter = 0L; counter < count; counter++) {
-				Figure* figure = (Figure*)ar.ReadObject(NULL);
+				auto figure = STATIC_DOWNCAST(Figure, ar.ReadObject(NULL));
 				if (figure != nullptr)
 					figures.Add(figure);
 			}

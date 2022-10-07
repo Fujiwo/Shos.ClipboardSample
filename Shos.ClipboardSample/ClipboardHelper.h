@@ -132,14 +132,14 @@ private:
         ASSERT(SUCCEEDED(result));
 
         constexpr ULONG bitmapFileHeaderSize = (ULONG)sizeof(BITMAPFILEHEADER);
-        const ULONG     actualStreamLength = streamLength - bitmapFileHeaderSize;
-        const HGLOBAL   imageHandle = ::GlobalAlloc(GHND, actualStreamLength);
+        const ULONG     actualStreamLength   = streamLength - bitmapFileHeaderSize;
+        const HGLOBAL   imageHandle          = ::GlobalAlloc(GHND, actualStreamLength);
         if (imageHandle == nullptr) {
             stream->Release();
             return nullptr;
         }
 
-        BYTE* byteArray = (BYTE*)::GlobalLock(imageHandle);
+        auto byteArray = static_cast<BYTE*>(::GlobalLock(imageHandle));
         result = ::IStream_Read(stream, byteArray, bitmapFileHeaderSize);
         ASSERT(SUCCEEDED(result));
 
