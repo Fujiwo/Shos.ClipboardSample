@@ -1,40 +1,16 @@
 #pragma once
+
 #include <afx.h>
 #include <random>
-
-class GdiObjectSelectorBase
-{
-	CDC& dc;
-	CGdiObject* const oldGdiObject;
-
-public:
-	GdiObjectSelectorBase(CDC& dc, CGdiObject* oldGdiObject) : dc(dc), oldGdiObject(oldGdiObject)
-	{}
-
-	virtual ~GdiObjectSelectorBase()
-	{
-		dc.SelectObject(oldGdiObject);
-	}
-};
-
-class StockObjectSelector : public GdiObjectSelectorBase
-{
-public:
-	StockObjectSelector(CDC& dc, int stockObjectIndex) : GdiObjectSelectorBase(dc, dc.SelectStockObject(stockObjectIndex))
-	{}
-};
-
-class GdiObjectSelector : public GdiObjectSelectorBase
-{
-public:
-	GdiObjectSelector(CDC& dc, CGdiObject& gdiObject) : GdiObjectSelectorBase(dc, dc.SelectObject(&gdiObject))
-	{}
-};
+#include "GdiObjectSelector.h"
 
 struct FigureAttribute
 {
 	COLORREF color;
 	int      penWidth;
+
+	FigureAttribute() : color(RGB(0x00, 0x00, 0x00)), penWidth(0)
+	{}
 
 	void Serialize(CArchive& ar)
 	{
@@ -52,13 +28,20 @@ class Figure : public CObject
 	FigureAttribute attribute;
 
 public:
-	void Draw(CDC& dc)
+	void Draw(CDC& dc) const
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
 		CPen pen(PS_SOLID, attribute.penWidth, attribute.color);
 		GdiObjectSelector gdiObjectSelector(dc, pen);
 
 		DrawShape(dc);
+	}
+
+	CRect GetArea() const
+	{
+		auto area = GetShapeArea();
+		area.InflateRect(attribute.penWidth, attribute.penWidth);
+		return area;
 	}
 
 	virtual void Serialize(CArchive& ar) override
@@ -68,8 +51,13 @@ public:
 	}
 
 protected:
-	virtual void DrawShape(CDC& dc)
+	virtual void DrawShape(CDC& dc) const
 	{}
+
+	virtual CRect GetShapeArea() const
+	{
+		return CRect();
+	}
 };
 
 class DotFigure : public Figure
@@ -97,10 +85,15 @@ public:
 	}
 
 protected:
-	virtual void DrawShape(CDC& dc)
+	virtual void DrawShape(CDC& dc) const override
+	{
+		dc.Ellipse(GetShapeArea());
+	}
+
+	virtual CRect GetShapeArea() const override
 	{
 		const CSize size(radius, radius);
-		dc.Ellipse(CRect(position - size, position + size));
+		return CRect(position - size, position + size);
 	}
 };
 
@@ -128,68 +121,81 @@ public:
 	}
 
 protected:
-	virtual void DrawShape(CDC& dc)
+	virtual void DrawShape(CDC& dc) const override
 	{
 		dc.MoveTo(start);
 		dc.LineTo(end);
 	}
+
+	virtual CRect GetShapeArea() const override
+	{
+		CRect area(start, end);
+		area.NormalizeRect();
+		return area;
+	}
 };
 
-class RectangleFigure : public Figure
+class RectangleFigureBase : public Figure
 {
-	DECLARE_SERIAL(RectangleFigure)
+	DECLARE_SERIAL(RectangleFigureBase)
 
 	CRect position;
+
+public:
+	RectangleFigureBase()
+	{}
+
+	RectangleFigureBase(const CRect& position) : position(position)
+	{}
+
+	virtual void Serialize(CArchive& ar) override
+	{
+		Figure::Serialize(ar);
+
+		if (ar.IsStoring())
+			ar << position;
+		else
+			ar >> position;
+	}
+
+protected:
+	virtual CRect GetShapeArea() const override
+	{
+		return position;
+	}
+};
+
+class RectangleFigure : public RectangleFigureBase
+{
+	DECLARE_SERIAL(RectangleFigure)
 
 public:
 	RectangleFigure()
 	{}
 
-	RectangleFigure(const CRect& position) : position(position)
+	RectangleFigure(const CRect& position) : RectangleFigureBase(position)
 	{}
 
-	virtual void Serialize(CArchive& ar) override
-	{
-		Figure::Serialize(ar);
-
-		if (ar.IsStoring())
-			ar << position;
-		else
-			ar >> position;
-	}
-
 protected:
-	virtual void DrawShape(CDC& dc)
+	virtual void DrawShape(CDC& dc) const override
 	{
 		dc.Rectangle(&position);
 	}
 };
 
-class EllipseFigure : public Figure
+class EllipseFigure : public RectangleFigureBase
 {
 	DECLARE_SERIAL(EllipseFigure)
-	
-	CRect position;
 
 public:
 	EllipseFigure()
 	{}
 
-	EllipseFigure(const CRect& position) : position(position)
+	EllipseFigure(const CRect& position) : RectangleFigureBase(position)
 	{}
 
-	virtual void Serialize(CArchive& ar) override
-	{
-		Figure::Serialize(ar);
-
-		if (ar.IsStoring())
-			ar << position;
-		else
-			ar >> position;
-	}
-
 protected:
-	virtual void DrawShape(CDC& dc)
+	virtual void DrawShape(CDC& dc) const override
 	{
 		dc.Ellipse(&position);
 	}
@@ -197,6 +203,8 @@ protected:
 
 class FigureHelper
 {
+	static const long		  figureKindNumber = 4;
+
 	static std::random_device random;
 	static std::mt19937		  mt;
 
@@ -210,8 +218,6 @@ public:
 private:
 	static Figure* GetRandomFigure(const CRect& area)
 	{
-		const long figureKindNumber = 4;
-
 		Figure* figure = nullptr;
 		
 		switch (RandomValue(0, figureKindNumber - 1)) {

@@ -21,12 +21,12 @@ public:
 		RemoveAll();
 	}
 
-	iterator begin()
+	iterator begin() const
 	{
 		return (iterator)(figures.GetData());
 	}
 
-	iterator end()
+	iterator end() const
 	{
 		return (iterator)figures.GetData() + figures.GetCount();
 	}
@@ -44,12 +44,18 @@ public:
 		figures.RemoveAll();
 	}
 
-    void Draw(CDC& dc)
+    void Draw(CDC& dc) const
     {
-        for (auto figure : *this)
-            figure->Draw(dc);
+		//DrawArea(dc, GetSysColor(COLOR_WINDOW));
+		DrawFigures(dc);
     }
 
+	//void DrawArea(CDC& dc, COLORREF color) const
+	//{
+	//	dc.FillSolidRect(GetArea(), color);
+	//}
+
+protected:
 	virtual void Serialize(CArchive& ar)
 	{
 		if (ar.IsStoring()) {
@@ -74,16 +80,23 @@ public:
 		CDocument::DeleteContents();
 	}
 
-    void AddDummyData(size_t count)
-    {
-		FigureHelper::AddRandomFigures(figures, count, GetArea());
-    }
-
 	afx_msg void OnFigureRandom()
 	{
 		const size_t count = 1000;
 		AddDummyData(count);
 		UpdateAllViews(nullptr);
+	}
+
+private:
+	void AddDummyData(size_t count)
+	{
+		FigureHelper::AddRandomFigures(figures, count, GetArea());
+	}
+
+	void DrawFigures(CDC& dc) const
+	{
+		for (auto figure : *this)
+			figure->Draw(dc);
 	}
 
     DECLARE_MESSAGE_MAP()

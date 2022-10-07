@@ -187,6 +187,7 @@
     <ClInclude Include="Document.h" />
     <ClInclude Include="Figure.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="GdiObjectSelector.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
