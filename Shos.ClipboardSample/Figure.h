@@ -220,10 +220,10 @@ class FigureHelper
 	static std::mt19937		  mt;
 
 public:
-	static void AddRandomFigures(CArray<Figure*>& figures, size_t count, const CRect& area)
+	static void AddRandomFigures(std::vector<Figure*>& figures, size_t count, const CRect& area)
 	{
 		for (size_t counter = 0; counter < count; counter++)
-			figures.Add(GetRandomFigure(area));
+			figures.push_back(GetRandomFigure(area));
 	}
 
 private:

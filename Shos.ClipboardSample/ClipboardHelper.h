@@ -112,23 +112,23 @@ private:
 
     static HGLOBAL ToImageStream(const CImage& image)
     {
-        IStream* stream = nullptr;
-        HRESULT result = ::CreateStreamOnHGlobal(0, TRUE, &stream);
+        IStream*        stream       = nullptr;
+        HRESULT         result       = ::CreateStreamOnHGlobal(0, TRUE, &stream);
         if (!SUCCEEDED(result))
             return nullptr;
 
-        result = image.Save(stream, Gdiplus::ImageFormatBMP);
+        result                       = image.Save(stream, Gdiplus::ImageFormatBMP);
         if (!SUCCEEDED(result)) {
             stream->Release();
             return nullptr;
         }
 
-        ULARGE_INTEGER streamSize{};
-        result = ::IStream_Size(stream, &streamSize);
+        ULARGE_INTEGER  streamSize{};
+        result                       = ::IStream_Size(stream, &streamSize);
         ASSERT(SUCCEEDED(result));
 
         const ULONG     streamLength = (ULONG)streamSize.LowPart;
-        result = ::IStream_Reset(stream);
+        result                       = ::IStream_Reset(stream);
         ASSERT(SUCCEEDED(result));
 
         constexpr ULONG bitmapFileHeaderSize = (ULONG)sizeof(BITMAPFILEHEADER);
@@ -139,11 +139,11 @@ private:
             return nullptr;
         }
 
-        auto byteArray = static_cast<BYTE*>(::GlobalLock(imageHandle));
-        result = ::IStream_Read(stream, byteArray, bitmapFileHeaderSize);
+        auto        byteArray      = static_cast<BYTE*>(::GlobalLock(imageHandle));
+        result                          = ::IStream_Read(stream, byteArray, bitmapFileHeaderSize);
         ASSERT(SUCCEEDED(result));
 
-        result = ::IStream_Read(stream, byteArray, actualStreamLength);
+        result                           = ::IStream_Read(stream, byteArray, actualStreamLength);
         ASSERT(SUCCEEDED(result));
         ::GlobalUnlock(imageHandle);
         stream->Release();

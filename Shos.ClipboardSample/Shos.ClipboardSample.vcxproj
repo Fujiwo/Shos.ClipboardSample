@@ -184,11 +184,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ClipboardHelper.h" />
+    <ClInclude Include="Command.h" />
     <ClInclude Include="Document.h" />
     <ClInclude Include="Figure.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="GdiObjectSelector.h" />
     <ClInclude Include="MainFrame.h" />
+    <ClInclude Include="Model.h" />
+    <ClInclude Include="Observer.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="Application.h" />
@@ -197,6 +200,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ClipboardHelper.cpp" />
+    <ClCompile Include="Command.cpp" />
     <ClCompile Include="Document.cpp" />
     <ClCompile Include="Figure.cpp" />
     <ClCompile Include="MainFrame.cpp" />
