@@ -31,7 +31,7 @@ class Model : public Observable<Hint>
 	static const LONG size = 2000L;
 
 	std::vector<Figure*>   figures;
-	const Figure*		   highlightedFigure;
+	const Figure* highlightedFigure;
 
 public:
 	using iterator = std::vector<Figure*>::const_iterator;
@@ -82,9 +82,9 @@ public:
 		Update(Hint(Hint::Type::ViewOnly, std::vector<Figure*>()));
 	}
 
-	void Hilight(const Figure& figure)
+	void Hilight(const Figure* figure)
 	{
-		highlightedFigure = &figure;
+		highlightedFigure = figure;
 	}
 
 	const Figure* Hilight() const
@@ -92,9 +92,10 @@ public:
 		return highlightedFigure;
 	}
 
-	void ClearSelected()
+	void UnSelectAll()
 	{
-		std::for_each(figures.begin(), figures.end(), [](Figure* figure) { figure->Select(false); });
+		ClearSelected();
+		Update(Hint(Hint::Type::ViewOnly, std::vector<Figure*>()));
 	}
 
 	virtual void Serialize(CArchive& ar)
@@ -115,12 +116,6 @@ public:
 		}
 	}
 
-	//virtual void DeleteContents()
-	//{
-	//	RemoveAll();
-	//	CDocument::DeleteContents();
-	//}
-
 	void Clear()
 	{
 		for (auto figure : *this)
@@ -138,5 +133,11 @@ public:
 		//	figures.push_back(figure);
 
 		Update(Hint(Hint::Type::Added, newFigures));
+	}
+
+private:
+	void ClearSelected()
+	{
+		std::for_each(figures.begin(), figures.end(), [](Figure* figure) { figure->Select(false); });
 	}
 };

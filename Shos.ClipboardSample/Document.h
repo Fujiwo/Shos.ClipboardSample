@@ -87,7 +87,7 @@ protected:
 
 	afx_msg void OnFigureRandom()
 	{
-		const size_t count = 100;
+		const size_t count = 10;
 		model.AddDummyData(count);
 	}
 

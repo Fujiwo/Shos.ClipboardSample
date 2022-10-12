@@ -37,8 +37,9 @@ public:
 
 class SelectCommand : public Command
 {
-	static const long	  cursorPenWidth = 3;
-	static const COLORREF cursorColor	 = RGB(0xff, 0x00, 0xff);
+	static const LONG	  searchingDistance = 100;
+	static const long	  cursorPenWidth	= 3;
+	static const COLORREF cursorColor		= RGB(0xff, 0x00, 0xff);
 
 	CPoint  cursorPosition;
 	bool    cursorPositionExists;
@@ -79,7 +80,9 @@ public:
 		TRACE(_T("OnClick(x: %d, y: %d)\n"), point.x, point.y);
 
 		auto nearestFigure = GetNearestFigure(point);
-		if (nearestFigure != nullptr)
+		if (nearestFigure == nullptr)
+			GetModel().UnSelectAll();
+		else
 			GetModel().Select(*nearestFigure);
 	}
 
@@ -88,8 +91,7 @@ public:
 		cursorPosition		 = point;
 		cursorPositionExists = true;
 		auto nearestFigure = GetNearestFigure(point);
-		if (nearestFigure != nullptr)
-			GetModel().Hilight(*nearestFigure);
+		GetModel().Hilight(nearestFigure);
 	}
 
 private:
@@ -99,7 +101,6 @@ private:
 		Figure*    nearestFigure	 = nullptr;
 
 		CRect	   searchinRect(point, point);
-		const LONG searchingDistance = 300;
 		searchinRect.InflateRect(searchingDistance, searchingDistance);
 		
 		for (auto figure : GetModel()) {

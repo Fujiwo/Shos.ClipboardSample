@@ -39,19 +39,18 @@ public:
     static long GetDistanceToLineSegment(CPoint point, CPoint start, CPoint end)
     {
         auto d  = end   - start;
+        auto length = Abs(d);
+        if (length == 0)
+            return GetDistance(point, start);
+
         auto d1 = start - point;
         auto d2 = end   - point;
 
         auto f0 = Mul(d, d1);
         auto f1 = Mul(d, d2);
 
-        if (f0 > 0)
-            return Abs(d1);
-        if (f1 < 0)
-            return Abs(d2);
-        auto l = Abs(d);
-        return l == 0 ? std::numeric_limits<long>::max()
-                      : abs(d.cy * d1.cx - d.cx * d1.cy) / l;
+        return f0 > 0 ? Abs(d1)
+            : (f1 < 0 ? Abs(d2) : abs(d.cy * d1.cx - d.cx * d1.cy) / length);
     }
 
     static long GetDistance(CPoint point, const CRect& rect)
@@ -69,15 +68,18 @@ public:
 
     static long GetDistanceToEllipse(CPoint point, const CRect& rect)
     {
-        auto points = ToPoints(rect);
-        auto distance = std::numeric_limits<long>::max();
+		if (rect.Width() == 0 || rect.Height() == 0)
+			return GetDistanceToLineSegment(point, rect.TopLeft(), rect.BottomRight());
 
-        for (size_t index = 0; index < points.size(); index++) {
-            auto eachDistance = GetDistanceToLineSegment(point, points[index], points[(index + 1) % points.size()]);
-            if (eachDistance < distance)
-                distance = eachDistance;
-        }
-        return distance;
+        auto rate = rect.Height() / (double)rect.Width();
+
+		auto d = point - rect.CenterPoint();
+		d.cx = Round(d.cx * rate);
+
+		auto distance = Abs(d) - rect.Height() / 2;
+        distance = Round(distance / rate);
+
+        return Round(distance);
     }
 
     // inner product
