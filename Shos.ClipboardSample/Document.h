@@ -5,6 +5,8 @@
 
 class Document : public CDocument, public Observer<Hint>
 {
+	static const COLORREF areaColor = RGB(0xff, 0xf0, 0xe0);
+	
 	Model		   model;
 	CommandManager commandManager;
 
@@ -37,20 +39,38 @@ public:
 
 	void Draw(CDC& dc) const
 	{
+		DrawArea(dc);
 		for (auto figure : *this)
 			figure->Draw(dc);
 	}
 
+	void DrawArea(CDC& dc) const
+	{
+		dc.FillSolidRect(GetArea(), areaColor);
+	}
+
+	void DrawCommand(CDC& dc)
+	{
+		commandManager.Draw(dc);
+	}
+
 	void OnClick(CPoint point)
 	{
-		if (GetArea().PtInRect(point))
+		if (IsValid(point))
 			commandManager.OnClick(point);
+	}
+
+	void OnMouseMove(CPoint point)
+	{
+		if (IsValid(point))
+			commandManager.OnMouseMove(point);
 	}
 
 protected:
 	virtual void Update(Hint& hint) override
 	{
-		SetModifiedFlag();
+		if (hint.type != Hint::Type::ViewOnly)
+			SetModifiedFlag();
 		UpdateAllViews(nullptr, 0, &hint);
 	}
 
@@ -67,8 +87,14 @@ protected:
 
 	afx_msg void OnFigureRandom()
 	{
-		const size_t count = 10;
+		const size_t count = 100;
 		model.AddDummyData(count);
+	}
+
+private:
+	bool IsValid(CPoint point)
+	{
+		return GetArea().PtInRect(point);
 	}
 
 	DECLARE_DYNCREATE(Document)

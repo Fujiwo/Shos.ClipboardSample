@@ -1,15 +1,22 @@
 ﻿#pragma once
 //#define SCROLL_VIEW
 
+#include "DoubleBuffer.h"
 #include "ClipboardHelper.h"
 
 class View : public
 #ifdef SCROLL_VIEW
-	CScrollView
+	DoubleBufferScrollView
 #else // SCROLL_VIEW
-	CView
+	DoubleBufferView
 #endif // SCROLL_VIEW 
 {
+public:
+	View()
+	{
+		SetBackgroundColor(GetBackgroundColor());
+	}
+	
 protected:
 	Document& GetDocument() const
 	{
@@ -20,7 +27,7 @@ protected:
 #ifdef SCROLL_VIEW
 	virtual void View::OnInitialUpdate() override
 	{
-		CScrollView::OnInitialUpdate();
+		DoubleBufferScrollView::OnInitialUpdate();
 		SetScrollSizes(MM_TEXT, GetDocument().GetSize());
 	}
 #endif // SCROLL_VIEW 
@@ -28,7 +35,7 @@ protected:
 #ifndef SCROLL_VIEW
 	virtual void OnPrepareDC(CDC* dc, CPrintInfo* pInfo = nullptr) override
 	{
-		CView::OnPrepareDC(dc, pInfo);
+		DoubleBufferView::OnPrepareDC(dc, pInfo);
 
 		dc->SetMapMode(MM_ISOTROPIC);
 
@@ -43,25 +50,39 @@ protected:
 	}
 #endif // SCROLL_VIEW
 
-	virtual void OnDraw(CDC* pDC) override
+	//virtual void OnDraw(CDC* pDC) override
+	//{
+	//	DrawFigures(*pDC, GetDocument());
+	//}
+
+	virtual void OnDrawLayer1(CDC& dc)
 	{
-		DrawFigures(*pDC, GetDocument());
+		GetDocument().DrawArea(dc);
+		DrawFigures(dc, GetDocument());
+	}
+
+	virtual void OnDrawLayer2(CDC& dc)
+	{
+		GetDocument().DrawCommand(dc);
 	}
 
 	virtual void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint) override
 	{
-		if (pHint == nullptr) {
+		Update();
+
+		if (pHint == nullptr || static_cast<Hint*>(pHint)->type == Hint::Type::ViewOnly) {
 			#ifdef SCROLL_VIEW
-					CScrollView
+			DoubleBufferScrollView
 			#else // SCROLL_VIEW
-					CView
+			DoubleBufferView
 			#endif // SCROLL_VIEW 
-						::OnUpdate(pSender, lHint, pHint);
+								  ::OnUpdate(pSender, lHint, pHint);
 			return;
 		}
 
 		CRect area;
 		FigureHelper::GetArea(static_cast<Hint*>(pHint)->figures, area);
+		
 		TRACE(_T("View::OnUpdate: area   (top: %d, left: %d, width: %d, height: %d)\n"), area.top, area.left, area.Width(), area.Height());
 		area = LPtoDP(area);
 		TRACE(_T("View::OnUpdate: clipbox(top: %d, left: %d, width: %d, height: %d)\n"), area.top, area.left, area.Width(), area.Height());
@@ -71,12 +92,12 @@ protected:
 
 	afx_msg void OnEditCopy()
 	{
-		ClipboardHelper::OnEditCopy(GetDocument(), *this, GetDocument().GetSize(), ::GetSysColor(COLOR_WINDOW), [&](CDC& dc) { GetDocument().Draw(dc); });
+		ClipboardHelper::OnEditCopy(GetDocument(), *this, GetDocument().GetSize(), GetBackgroundColor(), [&](CDC& dc) { GetDocument().Draw(dc); });
 	}
 
 	afx_msg void OnEditCut()
 	{
-		ClipboardHelper::OnEditCut(GetDocument(), *this, GetDocument().GetSize(), ::GetSysColor(COLOR_WINDOW), [&](CDC& dc) { GetDocument().Draw(dc); });
+		ClipboardHelper::OnEditCut(GetDocument(), *this, GetDocument().GetSize(), GetBackgroundColor(), [&](CDC& dc) { GetDocument().Draw(dc); });
 	}
 
 	afx_msg void OnEditPaste()
@@ -89,12 +110,23 @@ protected:
 		GetDocument().OnClick(DPtoLP(point));
 	}
 
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point)
+	{
+		GetDocument().OnMouseMove(DPtoLP(point));
+		Invalidate();
+	}
+
 	afx_msg void OnDestroyClipboard()
 	{
 		ClipboardHelper::OnDestroyClipboard();
 	}
 
 private:
+	static COLORREF GetBackgroundColor()
+	{
+		return ::GetSysColor(COLOR_WINDOW);
+	}
+	
 	void DrawFigures(CDC& dc, const Document& document)
 	{
 		CRect clipBox;

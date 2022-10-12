@@ -8,9 +8,10 @@ struct Hint : public CObject
 {
 	enum class Type
 	{
-		Added,
-		Removed,
-		Changed,
+		Added   ,
+		Removed ,
+		Changed ,
+		ViewOnly
 	};
 
 	std::vector<Figure*> figures;
@@ -30,13 +31,16 @@ class Model : public Observable<Hint>
 	static const LONG size = 2000L;
 
 	std::vector<Figure*>   figures;
+	const Figure*		   highlightedFigure;
 
 public:
-	//using iterator = Figure**;
 	using iterator = std::vector<Figure*>::const_iterator;
 
 	const CSize GetSize() const { return CSize(size, size); }
 	const CRect GetArea() const { return CRect(CPoint(), GetSize()); }
+
+	Model() : highlightedFigure(nullptr)
+	{}
 
 	virtual ~Model()
 	{
@@ -46,13 +50,11 @@ public:
 	iterator begin() const
 	{
 		return figures.begin();
-		//return (iterator)(figures.GetData());
 	}
 
 	iterator end() const
 	{
 		return figures.end();
-		//return (iterator)figures.GetData() + figures.GetCount();
 	}
 
 	void Add(Figure* figure)
@@ -70,13 +72,30 @@ public:
 		*iterator = newFigure;
 		std::vector<Figure*> changedFigures = { oldFigure, newFigure };
 		Update(Hint(Hint::Type::Changed, changedFigures));
+		return true;
 	}
 
-	//void Draw(CDC& dc) const
-	//{
-	//	for (auto figure : *this)
-	//		figure->Draw(dc);
-	//}
+	void Select(Figure& figure)
+	{
+		ClearSelected();
+		figure.Select(true);
+		Update(Hint(Hint::Type::ViewOnly, std::vector<Figure*>()));
+	}
+
+	void Hilight(const Figure& figure)
+	{
+		highlightedFigure = &figure;
+	}
+
+	const Figure* Hilight() const
+	{
+		return highlightedFigure;
+	}
+
+	void ClearSelected()
+	{
+		std::for_each(figures.begin(), figures.end(), [](Figure* figure) { figure->Select(false); });
+	}
 
 	virtual void Serialize(CArchive& ar)
 	{
@@ -107,6 +126,7 @@ public:
 		for (auto figure : *this)
 			delete figure;
 		figures.clear();
+		highlightedFigure = nullptr;
 	}
 
 	void AddDummyData(size_t count)

@@ -29,7 +29,13 @@ struct FigureAttribute
 
 class Figure : public CObject
 {
+	static const long	  selectorSize	   = 10L;
+	static const long	  selectorPenWidth = 5;
+	static const COLORREF selectedColor	   = RGB(0x80, 0x00, 0x40);
+	static const COLORREF areaColor		   = RGB(0x00, 0xa0, 0xff);
+	
 	FigureAttribute attribute;
+	bool            selected;
 
 public:
 	const FigureAttribute& Attribute() const
@@ -42,27 +48,55 @@ public:
 		return attribute;
 	}
 
+	Figure() : selected(false)
+	{}
+
+	Figure(const Figure& another) : attribute(another.attribute), selected(another.selected)
+	{}
+
+	void Select(bool selected)
+	{
+		this->selected = selected;
+	}
+
+	virtual Figure* Clone()
+	{
+		return new Figure(*this);
+	}
+
 	void Draw(CDC& dc) const
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
-		CPen pen(PS_SOLID, attribute.penWidth, attribute.color);
-		GdiObjectSelector gdiObjectSelector(dc, pen);
+		CPen				pen(PS_SOLID, attribute.penWidth, attribute.color);
+		GdiObjectSelector   penSelector(dc, pen);
 
 		DrawShape(dc);
+		if (selected)
+			DrawSelecter(dc);
+	}
+
+	void DrawArea(CDC& dc) const
+	{
+		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
+		CPen				pen(PS_SOLID, 3, areaColor);
+		GdiObjectSelector	penSelector(dc, pen);
+
+		dc.Rectangle(GetArea());
 	}
 
 	CRect GetArea() const
 	{
-		auto area = GetShapeArea();
-		area.InflateRect(attribute.penWidth, attribute.penWidth);
+		auto area   = GetShapeArea();
+		auto  margin = attribute.penWidth + selectorSize + selectorPenWidth;
+		area.InflateRect(margin, margin);
 		return area;
 	}
 
-	long GetDistanceFrom(CPoint point) const
+	virtual long GetDistanceFrom(CPoint point) const
 	{
 		return std::numeric_limits<long>::max();
 	}
-
+		
 	virtual void Serialize(CArchive& ar) override
 	{
 		CObject::Serialize(ar);
@@ -78,20 +112,57 @@ protected:
 		return CRect();
 	}
 
+	virtual std::vector<CPoint> GetPoints() const
+	{
+		return std::vector<CPoint>();
+	}
+	
+private:
+	void DrawSelecter(CDC& dc) const
+	{
+		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
+		CPen				pen(PS_SOLID, selectorPenWidth, selectedColor);
+		GdiObjectSelector	penSelector(dc, pen);
+
+		auto points = GetPoints();
+		std::for_each(points.begin(), points.end(), [&](const CPoint& point) { DrawSelecter(dc, point); });
+	}
+
+	void DrawSelecter(CDC& dc, CPoint point) const
+	{
+		CRect rect(point, point);
+		rect.InflateRect(selectorSize, selectorSize);
+		dc.Rectangle(rect);
+	}
+
 	DECLARE_SERIAL(Figure)
 };
 
 class DotFigure : public Figure
 {
-	const LONG radius = 10L;
+	const long radius = 10L;
 	CPoint     position;
 		
 public:
 	DotFigure()
 	{}
 
+	DotFigure(const DotFigure& another) : Figure(another), position(another.position)
+	{}
+
 	DotFigure(const CPoint& position) : position(position)
 	{}
+
+	virtual Figure* Clone() override
+	{
+		return new DotFigure(*this);
+	}
+
+	virtual long GetDistanceFrom(CPoint point) const override
+	{
+		auto distance = Geometry::GetDistance(point, position) - radius;
+		return distance > 0L ? distance : 0L;
+	}
 
 	virtual void Serialize(CArchive& ar) override
 	{
@@ -115,6 +186,11 @@ protected:
 		return CRect(position - size, position + size);
 	}
 
+	virtual std::vector<CPoint> GetPoints() const
+	{
+		return { position };
+	}
+
 	DECLARE_SERIAL(DotFigure)
 };
 
@@ -126,8 +202,21 @@ public:
 	LineFigure()
 	{}
 
+	LineFigure(const LineFigure& another) : Figure(another), start(another.start), end(another.end)
+	{}
+
 	LineFigure(CPoint start, CPoint end) : start(start), end(end)
 	{}
+
+	virtual Figure* Clone() override
+	{
+		return new LineFigure(*this);
+	}
+
+	virtual long GetDistanceFrom(CPoint point) const override
+	{
+		return Geometry::GetDistanceToLineSegment(point, start, end);
+	}
 
 	virtual void Serialize(CArchive& ar) override
 	{
@@ -153,6 +242,11 @@ protected:
 		return area;
 	}
 
+	virtual std::vector<CPoint> GetPoints() const
+	{
+		return { start, end };
+	}
+
 	DECLARE_SERIAL(LineFigure)
 };
 
@@ -163,6 +257,9 @@ protected:
 
 public:
 	RectangleFigureBase()
+	{}
+
+	RectangleFigureBase(const RectangleFigureBase& another) : Figure(another), position(another.position)
 	{}
 
 	RectangleFigureBase(const CRect& position) : position(position)
@@ -186,6 +283,11 @@ protected:
 		return position;
 	}
 
+	virtual std::vector<CPoint> GetPoints() const
+	{
+		return Geometry::ToPoints(position);
+	}
+
 	DECLARE_SERIAL(RectangleFigureBase)
 };
 
@@ -198,10 +300,20 @@ public:
 	RectangleFigure(const CRect& position) : RectangleFigureBase(position)
 	{}
 
+	virtual Figure* Clone() override
+	{
+		return new RectangleFigure(*this);
+	}
+
 protected:
 	virtual void DrawShape(CDC& dc) const override
 	{
 		dc.Rectangle(&position);
+	}
+
+	virtual long GetDistanceFrom(CPoint point) const override
+	{
+		return Geometry::GetDistance(point, position);
 	}
 
 	DECLARE_SERIAL(RectangleFigure)
@@ -216,10 +328,20 @@ public:
 	EllipseFigure(const CRect& position) : RectangleFigureBase(position)
 	{}
 
+	virtual Figure* Clone() override
+	{
+		return new EllipseFigure(*this);
+	}
+
 protected:
 	virtual void DrawShape(CDC& dc) const override
 	{
 		dc.Ellipse(&position);
+	}
+
+	virtual long GetDistanceFrom(CPoint point) const override
+	{
+		return Geometry::GetDistanceToEllipse(point, position);
 	}
 
 	DECLARE_SERIAL(EllipseFigure)

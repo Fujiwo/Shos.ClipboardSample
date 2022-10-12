@@ -186,6 +186,7 @@
     <ClInclude Include="ClipboardHelper.h" />
     <ClInclude Include="Command.h" />
     <ClInclude Include="Document.h" />
+    <ClInclude Include="DoubleBuffer.h" />
     <ClInclude Include="Figure.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="GdiObjectSelector.h" />
@@ -203,6 +204,7 @@
     <ClCompile Include="ClipboardHelper.cpp" />
     <ClCompile Include="Command.cpp" />
     <ClCompile Include="Document.cpp" />
+    <ClCompile Include="DoubleBuffer.cpp" />
     <ClCompile Include="Figure.cpp" />
     <ClCompile Include="MainFrame.cpp" />
     <ClCompile Include="pch.cpp">
