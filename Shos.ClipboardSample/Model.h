@@ -1,9 +1,10 @@
 #pragma once
 
+#include <afx.h>
 #include "Observer.h"
 #include "Figure.h"
 
-struct Hint
+struct Hint : public CObject
 {
 	enum class Type
 	{
@@ -39,7 +40,7 @@ public:
 
 	virtual ~Model()
 	{
-		RemoveAll();
+		Clear();
 	}
 
 	iterator begin() const
@@ -101,7 +102,7 @@ public:
 	//	CDocument::DeleteContents();
 	//}
 
-	void RemoveAll()
+	void Clear()
 	{
 		for (auto figure : *this)
 			delete figure;
@@ -110,6 +111,12 @@ public:
 
 	void AddDummyData(size_t count)
 	{
-		FigureHelper::AddRandomFigures(figures, count, GetArea());
+		auto newFigures = FigureHelper::GetRandomFigures(count, GetArea());
+		std::for_each(newFigures.begin(), newFigures.end(), [&](Figure* figure) { figures.push_back(figure); });
+		
+		//for (auto figure : newFigures)
+		//	figures.push_back(figure);
+
+		Update(Hint(Hint::Type::Added, newFigures));
 	}
 };

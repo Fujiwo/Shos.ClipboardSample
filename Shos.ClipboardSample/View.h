@@ -48,6 +48,27 @@ protected:
 		DrawFigures(*pDC, GetDocument());
 	}
 
+	virtual void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint) override
+	{
+		if (pHint == nullptr) {
+			#ifdef SCROLL_VIEW
+					CScrollView
+			#else // SCROLL_VIEW
+					CView
+			#endif // SCROLL_VIEW 
+						::OnUpdate(pSender, lHint, pHint);
+			return;
+		}
+
+		CRect area;
+		FigureHelper::GetArea(static_cast<Hint*>(pHint)->figures, area);
+		TRACE(_T("View::OnUpdate: area   (top: %d, left: %d, width: %d, height: %d)\n"), area.top, area.left, area.Width(), area.Height());
+		area = LPtoDP(area);
+		TRACE(_T("View::OnUpdate: clipbox(top: %d, left: %d, width: %d, height: %d)\n"), area.top, area.left, area.Width(), area.Height());
+
+		InvalidateRect(area);
+	}
+
 	afx_msg void OnEditCopy()
 	{
 		ClipboardHelper::OnEditCopy(GetDocument(), *this, GetDocument().GetSize(), ::GetSysColor(COLOR_WINDOW), [&](CDC& dc) { GetDocument().Draw(dc); });
@@ -63,9 +84,9 @@ protected:
 		ClipboardHelper::OnEditPaste(GetDocument(), *this);
 	}
 
-	afx_msg void OnMouseMove(UINT nFlags, CPoint point)
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point)
 	{
-		GetDocument().OnMouseMove(nFlags, DPtoLP(point));
+		GetDocument().OnClick(DPtoLP(point));
 	}
 
 	afx_msg void OnDestroyClipboard()
@@ -77,21 +98,26 @@ private:
 	void DrawFigures(CDC& dc, const Document& document)
 	{
 		CRect clipBox;
-		dc.GetClipBox(&clipBox);
-		dc.DPtoLP(&clipBox);
-		
-		for (auto figure : document) {
-			ASSERT_VALID(figure);
-			if (HasIntersection(*figure, clipBox))
-				continue;
-			figure->Draw(dc);
+		auto clippingMode = dc.GetClipBox(clipBox);
+
+		if (clippingMode == SIMPLEREGION || clippingMode == COMPLEXREGION) {
+			dc.DPtoLP(clipBox);
+			for (auto figure : document) {
+				ASSERT_VALID(figure);
+				if (HasIntersection(*figure, clipBox))
+					figure->Draw(dc);
+			}
+		}
+		else {
+			ASSERT(false);
+			//document.Draw(dc);
 		}
 	}
 
 	bool HasIntersection(const Figure& figure, const CRect& clipBox)
 	{
 		CRect intersection;
-		return intersection.IntersectRect(&figure.GetArea(), &clipBox);
+		return intersection.IntersectRect(figure.GetArea(), clipBox);
 	}
 
 	CPoint DPtoLP(CPoint point)
@@ -101,7 +127,15 @@ private:
 		dc.DPtoLP(&point);
 		return point;
 	}
-	
+
+	CRect LPtoDP(CRect rect)
+	{
+		CClientDC dc(this);
+		OnPrepareDC(&dc);
+		dc.LPtoDP(rect);
+		return rect;
+	}
+
 	DECLARE_DYNCREATE(View)
 	DECLARE_MESSAGE_MAP()
 };

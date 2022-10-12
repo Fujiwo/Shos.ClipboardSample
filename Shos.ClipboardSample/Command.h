@@ -23,7 +23,7 @@ public:
 		this->model = &model;
 	}
 
-	virtual void OnMouseMove(UINT nFlags, CPoint point)
+	virtual void OnClick(CPoint point)
 	{}
 	
 	DECLARE_DYNCREATE(Command)
@@ -32,10 +32,10 @@ public:
 class SelectCommand : public Command
 {
 public:
-	virtual void OnMouseMove(UINT nFlags, CPoint point) override
+	virtual void OnClick(CPoint point) override
 	{
-		TRACE(_T("OnMouseMove(%d, %d)\n"), point.x, point.y);
-
+		TRACE(_T("OnClick(x: %d, y: %d)\n"), point.x, point.y);
+		
 		//long distance = 
 		for (auto figure : GetModel()) {
 		}
@@ -67,9 +67,9 @@ public:
 		currentCommand->Set(model);
 	}
 
-	void OnMouseMove(UINT nFlags, CPoint point)
+	void OnClick(CPoint point)
 	{
 		if (currentCommand != nullptr)
-			currentCommand->OnMouseMove(nFlags, point);
+			currentCommand->OnClick(point);
 	}
 };

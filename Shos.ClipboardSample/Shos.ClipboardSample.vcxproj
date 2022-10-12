@@ -189,6 +189,7 @@
     <ClInclude Include="Figure.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="GdiObjectSelector.h" />
+    <ClInclude Include="Geometry.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="Observer.h" />

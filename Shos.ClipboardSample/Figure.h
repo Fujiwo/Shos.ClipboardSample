@@ -1,8 +1,14 @@
 #pragma once
 
 #include <afx.h>
+#include <limits>
 #include <random>
 #include "GdiObjectSelector.h"
+#include "Geometry.h"
+
+#ifdef max
+#undef max
+#endif // max
 
 struct FigureAttribute
 {
@@ -52,6 +58,11 @@ public:
 		return area;
 	}
 
+	long GetDistanceFrom(CPoint point) const
+	{
+		return std::numeric_limits<long>::max();
+	}
+
 	virtual void Serialize(CArchive& ar) override
 	{
 		CObject::Serialize(ar);
@@ -73,7 +84,7 @@ protected:
 class DotFigure : public Figure
 {
 	const LONG radius = 10L;
-	CPoint position;
+	CPoint     position;
 		
 public:
 	DotFigure()
@@ -155,7 +166,9 @@ public:
 	{}
 
 	RectangleFigureBase(const CRect& position) : position(position)
-	{}
+	{
+		this->position.NormalizeRect();
+	}
 
 	virtual void Serialize(CArchive& ar) override
 	{
@@ -220,10 +233,22 @@ class FigureHelper
 	static std::mt19937		  mt;
 
 public:
-	static void AddRandomFigures(std::vector<Figure*>& figures, size_t count, const CRect& area)
+	static std::vector<Figure*> GetRandomFigures(size_t count, const CRect& area)
 	{
+		std::vector<Figure*> figures;
 		for (size_t counter = 0; counter < count; counter++)
 			figures.push_back(GetRandomFigure(area));
+		return figures;
+	}
+
+	static bool GetArea(std::vector<Figure*> figures, CRect& area)
+	{
+		if (figures.size() == 0)
+			return false;
+
+		std::vector<CRect> areas(figures.size());
+		std::transform(figures.begin(), figures.end(), areas.begin(), [](Figure* figure) { return figure->GetArea(); });
+		return Geometry::GetArea(areas, area);
 	}
 
 private:
@@ -249,7 +274,7 @@ private:
 			figure = nullptr;
 			break;
 		}
-		figure->Attribute().color = RandomColor();
+		figure->Attribute().color    = RandomColor();
 		figure->Attribute().penWidth = RandomValue(0, 5);
 		return figure;
 	}

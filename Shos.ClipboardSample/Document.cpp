@@ -10,5 +10,5 @@
 IMPLEMENT_DYNCREATE(Document, CDocument)
 
 BEGIN_MESSAGE_MAP(Document, CDocument)
-	ON_COMMAND(ID_FIGURE_RANDOM, &Document::OnFigureRandom)
+	ON_COMMAND(ID_FIGURE_RANDOM, OnFigureRandom)
 END_MESSAGE_MAP()
