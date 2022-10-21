@@ -1,4 +1,4 @@
-# Shos.ClipboardSample
+# [C++/MFC] Shos.ClipboardSample
 
 Sample of copying and pasting to the clipboard.
 
