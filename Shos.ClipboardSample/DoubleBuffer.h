@@ -5,15 +5,18 @@
 
 class DoubleBuffer
 {
-    bool     isCacheValid;
+    bool     isCacheValid    = false;
     CRect    invalidCacheArea; // device coordinates
     CBitmap  cache;
-    COLORREF backgroundColor;
+    COLORREF backgroundColor = ::GetSysColor(COLOR_WINDOW);
     CView&   view;
 
 public:
-    DoubleBuffer(CView& view) : isCacheValid(false), backgroundColor(::GetSysColor(COLOR_WINDOW)), view(view)
+    explicit DoubleBuffer(CView& view) : view(view)
     {}
+
+    DoubleBuffer(const DoubleBuffer&) = delete;
+    DoubleBuffer& operator=(const DoubleBuffer&) = delete;
 
     CView& Window()
     {
@@ -92,7 +95,7 @@ private:
         memoryDC.SelectClipRgn(&clipRegion);
 
         memoryDC.FillSolidRect(&deviceArea, backgroundColor);
-        auto savedDC = memoryDC.SaveDC();
+        const auto savedDC = memoryDC.SaveDC();
         view.OnPrepareDC(&memoryDC);
         OnDrawLayer1(memoryDC);
         memoryDC.RestoreDC(savedDC);
@@ -105,7 +108,7 @@ template <class TView>
 class DoubleBufferViewBase : public TView, protected DoubleBuffer
 {
 public:
-    DoubleBufferViewBase() : DoubleBuffer(*(TView*)this)
+    DoubleBufferViewBase() : DoubleBuffer(static_cast<TView&>(*this))
     {}
 
 protected:
@@ -169,7 +172,7 @@ class DoubleBufferScrollView : public DoubleBufferViewBase<CScrollView>
 
     afx_msg BOOL OnMouseWheel(UINT nFlags, short delta, CPoint point)
     {
-        auto result = DoubleBufferViewBase<CScrollView>::OnMouseWheel(nFlags, delta, point);
+        const auto result = DoubleBufferViewBase<CScrollView>::OnMouseWheel(nFlags, delta, point);
         Update();
         Invalidate();
         return result;

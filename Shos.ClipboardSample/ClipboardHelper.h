@@ -4,7 +4,7 @@
 #include <afxwin.h>
 #include <atlimage.h>
 #include <shlwapi.h>
-#include <functional>
+#include <concepts>
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -16,7 +16,7 @@ class ClipboardHelper
         const bool isOpened;
 
     public:
-        ClipboardOpener(CWnd& window) : isOpened(window.OpenClipboard() != FALSE)
+        explicit ClipboardOpener(CWnd& window) : isOpened(window.OpenClipboard() != FALSE)
         {}
 
         ~ClipboardOpener()
@@ -46,7 +46,7 @@ public:
         return ::IsClipboardFormatAvailable(GetClipboardFormat()) != FALSE;
     }
 
-    static bool Copy(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
+    static bool Copy(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::invocable<CDC&> auto&& draw)
     {
         ClipboardOpener clipboardOpener(view);
         if (!clipboardOpener.IsOpened() || !::EmptyClipboard())
@@ -62,7 +62,7 @@ public:
         }
     }
 
-    static bool Paste(CWnd& view, std::function<void(CArchive&)> paste)
+    static bool Paste(CWnd& view, std::invocable<CArchive&> auto&& paste)
     {
         ClipboardOpener clipboardOpener(view);
         if (!clipboardOpener.IsOpened())
@@ -89,7 +89,7 @@ public:
     }
 
 private:
-    static bool CopyMetaFileToClipboard(CWnd& view, std::function<void(CDC&)> draw)
+    static bool CopyMetaFileToClipboard(CWnd& view, std::invocable<CDC&> auto& draw)
     {
         CClientDC   clientDC(&view);
         CMetaFileDC metaDC;
@@ -125,7 +125,7 @@ private:
         return true;
     }
 
-    static bool CreateImage(CImage& image, CSize size, std::function<void(CDC&)> draw, COLORREF backgroundColor)
+    static bool CreateImage(CImage& image, CSize size, std::invocable<CDC&> auto& draw, COLORREF backgroundColor)
     {
         if (!image.Create(size.cx, size.cy, 24))
             return false;
@@ -174,7 +174,7 @@ private:
         return dibHandle;
     }
 
-    static bool CopyImageToClipboard(CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
+    static bool CopyImageToClipboard(CSize size, COLORREF backgroundColor, std::invocable<CDC&> auto& draw)
     {
         CImage image;
         if (!CreateImage(image, size, draw, backgroundColor))

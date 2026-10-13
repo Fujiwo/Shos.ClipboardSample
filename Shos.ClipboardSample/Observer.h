@@ -29,7 +29,7 @@ public:
 
 	void Update(THint& hint)
 	{
-		for (auto observer : observers)
+		for (auto* observer : observers)
 			observer->Update(hint);
 	}
 };

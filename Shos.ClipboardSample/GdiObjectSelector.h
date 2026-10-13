@@ -1,7 +1,6 @@
 #pragma once
 
 #include <afx.h>
-#include <random>
 
 class GdiObjectSelectorBase
 {
@@ -16,6 +15,9 @@ public:
 	{
 		dc.SelectObject(oldGdiObject);
 	}
+
+	GdiObjectSelectorBase(const GdiObjectSelectorBase&) = delete;
+	GdiObjectSelectorBase& operator=(const GdiObjectSelectorBase&) = delete;
 };
 
 class StockObjectSelector : public GdiObjectSelectorBase

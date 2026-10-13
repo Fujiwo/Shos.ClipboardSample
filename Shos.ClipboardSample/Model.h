@@ -2,6 +2,7 @@
 
 #include <afx.h>
 #include <algorithm>
+#include <utility>
 #include <vector>
 #include "Observer.h"
 #include "Figure.h"
@@ -21,12 +22,15 @@ struct Hint : public CObject
 
 	Hint(const Hint& other) = delete;
 
+	explicit Hint(Type type) : type(type)
+	{}
+
 	Hint(Type type, Figure* figure) : type(type)
 	{
 		figures.push_back(figure);
 	}
 
-	Hint(Type type, std::vector<Figure*> figures) : figures(figures), type(type)
+	Hint(Type type, std::vector<Figure*> figures) : figures(std::move(figures)), type(type)
 	{}
 
 	Hint& operator =(const Hint& other) = delete;
@@ -36,10 +40,10 @@ struct Hint : public CObject
 
 class Model : public Observable<Hint>
 {
-	static const LONG size = 2000L;
+	static constexpr LONG size = 2000L;
 
-	std::vector<Figure*>   figures;
-	const Figure* highlightedFigure;
+	std::vector<Figure*> figures;
+	const Figure*		 highlightedFigure = nullptr;
 
 public:
 	using iterator = std::vector<Figure*>::const_iterator;
@@ -47,8 +51,7 @@ public:
 	const CSize GetSize() const { return CSize(size, size); }
 	const CRect GetArea() const { return CRect(CPoint(), GetSize()); }
 
-	Model() : highlightedFigure(nullptr)
-	{}
+	Model() = default;
 
 	virtual ~Model()
 	{
@@ -80,7 +83,7 @@ public:
 	// Replaces oldFigure with newFigure. The model takes ownership of newFigure and deletes oldFigure.
 	bool Change(Figure* oldFigure, Figure* newFigure)
 	{
-		auto iterator = std::find(figures.begin(), figures.end(), oldFigure);
+		auto iterator = std::ranges::find(figures, oldFigure);
 		if (iterator == figures.end())
 			return false;
 
@@ -88,8 +91,7 @@ public:
 		if (highlightedFigure == oldFigure)
 			highlightedFigure = nullptr;
 
-		std::vector<Figure*> changedFigures = { oldFigure, newFigure };
-		Hint hint(Hint::Type::Changed, changedFigures);
+		Hint hint(Hint::Type::Changed, { oldFigure, newFigure });
 		Update(hint);
 
 		delete oldFigure;
@@ -108,7 +110,7 @@ public:
 		Hint hint(Hint::Type::Removed, removedFigures);
 		Update(hint);
 
-		for (auto figure : removedFigures)
+		for (auto* figure : removedFigures)
 			delete figure;
 	}
 
@@ -128,7 +130,7 @@ public:
 	{
 		ClearSelected();
 		figure.Select(true);
-		Hint hint(Hint::Type::ViewOnly, std::vector<Figure*>());
+		Hint hint(Hint::Type::ViewOnly);
 		Update(hint);
 	}
 
@@ -145,7 +147,7 @@ public:
 	void UnSelectAll()
 	{
 		ClearSelected();
-		Hint hint(Hint::Type::ViewOnly, std::vector<Figure*>());
+		Hint hint(Hint::Type::ViewOnly);
 		Update(hint);
 	}
 
@@ -153,7 +155,7 @@ public:
 	{
 		if (ar.IsStoring()) {
 			ar.WriteCount(figures.size());
-			for (auto figure : *this)
+			for (auto* figure : *this)
 				ar.WriteObject(figure);
 		} else {
 			auto newFigures = Load(ar);
@@ -163,7 +165,7 @@ public:
 
 	void Clear()
 	{
-		for (auto figure : *this)
+		for (auto* figure : *this)
 			delete figure;
 		figures.clear();
 		highlightedFigure = nullptr;
@@ -183,14 +185,13 @@ private:
 	{
 		std::vector<Figure*> loadedFigures;
 		try {
-			auto count = ar.ReadCount();
-			for (DWORD_PTR counter = 0L; counter < count; counter++) {
-				auto figure = static_cast<Figure*>(ar.ReadObject(RUNTIME_CLASS(Figure)));
-				if (figure != nullptr)
+			const auto count = ar.ReadCount();
+			for (DWORD_PTR counter = 0; counter < count; counter++) {
+				if (auto* figure = static_cast<Figure*>(ar.ReadObject(RUNTIME_CLASS(Figure))))
 					loadedFigures.push_back(figure);
 			}
 		} catch (CException*) {
-			for (auto figure : loadedFigures)
+			for (auto* figure : loadedFigures)
 				delete figure;
 			throw;
 		}
@@ -199,7 +200,8 @@ private:
 
 	void ClearSelected()
 	{
-		std::for_each(figures.begin(), figures.end(), [](Figure* figure) { figure->Select(false); });
+		for (auto* figure : figures)
+			figure->Select(false);
 	}
 
 	Model(const Model& other) = delete;

@@ -5,7 +5,7 @@
 
 class Document : public CDocument, public Observer<Hint>
 {
-	static const COLORREF areaColor = RGB(0xff, 0xf0, 0xe0);
+	static constexpr COLORREF areaColor = RGB(0xff, 0xf0, 0xe0);
 
 	Model		   model;
 	CommandManager commandManager;
@@ -49,7 +49,7 @@ public:
 	void Draw(CDC& dc) const
 	{
 		DrawArea(dc);
-		for (auto figure : *this)
+		for (auto* figure : *this)
 			figure->Draw(dc);
 	}
 
@@ -102,12 +102,12 @@ protected:
 
 	afx_msg void OnFigureRandom()
 	{
-		const size_t count = 10;
+		constexpr size_t count = 10;
 		model.AddDummyData(count);
 	}
 
 private:
-	bool IsValid(CPoint point)
+	bool IsValid(CPoint point) const
 	{
 		return GetArea().PtInRect(point) != FALSE;
 	}

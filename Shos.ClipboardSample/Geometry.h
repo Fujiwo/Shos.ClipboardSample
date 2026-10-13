@@ -1,17 +1,20 @@
 #pragma once
 
 #include <afx.h>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <numbers>
+#include <optional>
+#include <span>
 #include <vector>
 
 class Geometry
 {
 public:
     template <class T>
-    static T Square(T x)
+    static constexpr T Square(T x)
     {
         return x * x;
     }
@@ -24,12 +27,12 @@ public:
     // absolute value
     static long Abs(CPoint point)
     {
-        return Round(std::sqrt(Square(static_cast<double>(point.x)) + Square(static_cast<double>(point.y))));
+        return Round(std::hypot(static_cast<double>(point.x), static_cast<double>(point.y)));
     }
 
     static long Abs(CSize size)
     {
-        return Round(std::sqrt(Square(static_cast<double>(size.cx)) + Square(static_cast<double>(size.cy))));
+        return Round(std::hypot(static_cast<double>(size.cx), static_cast<double>(size.cy)));
     }
 
     static long GetDistance(CPoint point1, CPoint point2)
@@ -39,20 +42,17 @@ public:
 
     static long GetDistanceToLineSegment(CPoint point, CPoint start, CPoint end)
     {
-        auto d      = end - start;
-        auto length = Abs(d);
+        const auto d      = end - start;
+        const auto length = Abs(d);
         if (length == 0)
             return GetDistance(point, start);
 
-        auto d1 = start - point;
-        auto d2 = end   - point;
+        const auto d1 = start - point;
+        const auto d2 = end   - point;
 
-        auto f0 = Mul(d, d1);
-        auto f1 = Mul(d, d2);
-
-        if (f0 > 0)
+        if (Mul(d, d1) > 0)
             return Abs(d1);
-        if (f1 < 0)
+        if (Mul(d, d2) < 0)
             return Abs(d2);
 
         // outer product / length
@@ -86,15 +86,12 @@ public:
         return GetDistanceToPolygon(point, points);
     }
 
-    static long GetDistanceToPolygon(CPoint point, const std::vector<CPoint>& points)
+    static long GetDistanceToPolygon(CPoint point, std::span<const CPoint> points)
     {
         auto distance = (std::numeric_limits<long>::max)();
 
-        for (size_t index = 0; index < points.size(); index++) {
-            auto eachDistance = GetDistanceToLineSegment(point, points[index], points[(index + 1) % points.size()]);
-            if (eachDistance < distance)
-                distance = eachDistance;
-        }
+        for (size_t index = 0; index < points.size(); index++)
+            distance = (std::min)(distance, GetDistanceToLineSegment(point, points[index], points[(index + 1) % points.size()]));
         return distance;
     }
 
@@ -114,18 +111,18 @@ public:
         return { rect.TopLeft(), CPoint(rect.right, rect.top), rect.BottomRight(), CPoint(rect.left, rect.bottom) };
     }
 
-    static bool GetArea(const std::vector<CRect>& areas, CRect& area)
+    // Returns the union of the areas, or std::nullopt when there is no area.
+    static std::optional<CRect> GetArea(std::span<const CRect> areas)
     {
         if (areas.empty())
-            return false;
+            return std::nullopt;
 
-        area = areas[0];
+        auto area = areas.front();
         area.NormalizeRect();
-        for (size_t index = 1; index < areas.size(); index++) {
-            auto eachArea = areas[index];
+        for (auto eachArea : areas.subspan(1)) {
             eachArea.NormalizeRect();
             area.UnionRect(area, eachArea);
         }
-        return true;
+        return area;
     }
 };

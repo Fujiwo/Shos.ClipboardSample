@@ -1,13 +1,13 @@
 #pragma once
 #include <afx.h>
-#include <iterator>
+#include <array>
 #include <limits>
 #include <memory>
 #include "Model.h"
 
 class Command : public CObject
 {
-	Model* model;
+	Model* model = nullptr;
 
 protected:
 	Model& GetModel() const
@@ -17,8 +17,7 @@ protected:
 	}
 
 public:
-	Command() : model(nullptr)
-	{}
+	Command() = default;
 
 	void Set(Model& model)
 	{
@@ -42,16 +41,16 @@ public:
 
 class SelectCommand : public Command
 {
-	static const LONG	  searchingDistance = 100;
-	static const long	  cursorPenWidth	= 3;
-	static const COLORREF cursorColor		= RGB(0xff, 0x00, 0xff);
+	static constexpr LONG	  searchingDistance = 100;
+	static constexpr LONG	  cursorLength		= 100;
+	static constexpr long	  cursorPenWidth	= 3;
+	static constexpr COLORREF cursorColor		= RGB(0xff, 0x00, 0xff);
 
-	CPoint  cursorPosition;
-	bool    cursorPositionExists;
+	CPoint cursorPosition;
+	bool   cursorPositionExists = false;
 
 public:
-	SelectCommand() : cursorPositionExists(false)
-	{}
+	SelectCommand() = default;
 
 	virtual void Draw(CDC& dc) override
 	{
@@ -62,41 +61,37 @@ public:
 			auto deviceCursorPosition = cursorPosition;
 			dc.LPtoDP(&deviceCursorPosition);
 
-			const LONG cursorLength = 100;
-
-			CPoint points[] = {
+			std::array<CPoint, 4> points = {{
 				{ deviceCursorPosition.x - cursorLength, deviceCursorPosition.y },
 				{ deviceCursorPosition.x + cursorLength, deviceCursorPosition.y },
 				{ deviceCursorPosition.x, deviceCursorPosition.y - cursorLength },
 				{ deviceCursorPosition.x, deviceCursorPosition.y + cursorLength }
-			};
-			constexpr int pointNumber = static_cast<int>(std::size(points));
-			dc.DPtoLP(points, pointNumber);
+			}};
+			constexpr int pointNumber = static_cast<int>(points.size());
+			dc.DPtoLP(points.data(), pointNumber);
 
-			dc.Polyline(points	  , pointNumber / 2);
-			dc.Polyline(points + 2, pointNumber / 2);
+			dc.Polyline(points.data()	 , pointNumber / 2);
+			dc.Polyline(points.data() + 2, pointNumber / 2);
 		}
-		if (GetModel().Highlight() != nullptr)
-			GetModel().Highlight()->DrawArea(dc);
+		if (const auto* highlightedFigure = GetModel().Highlight())
+			highlightedFigure->DrawArea(dc);
 	}
 
 	virtual void OnClick(CPoint point) override
 	{
 		TRACE(_T("OnClick(x: %d, y: %d)\n"), point.x, point.y);
 
-		auto nearestFigure = GetNearestFigure(point);
-		if (nearestFigure == nullptr)
-			GetModel().UnSelectAll();
-		else
+		if (auto* nearestFigure = GetNearestFigure(point))
 			GetModel().Select(*nearestFigure);
+		else
+			GetModel().UnSelectAll();
 	}
 
 	virtual void OnMouseMove(CPoint point) override
 	{
 		cursorPosition		 = point;
 		cursorPositionExists = true;
-		auto nearestFigure = GetNearestFigure(point);
-		GetModel().Highlight(nearestFigure);
+		GetModel().Highlight(GetNearestFigure(point));
 	}
 
 	virtual void OnMouseLeave() override
@@ -114,10 +109,9 @@ private:
 		CRect searchingRect(point, point);
 		searchingRect.InflateRect(searchingDistance, searchingDistance);
 
-		for (auto figure : GetModel()) {
-			CRect rect;
-			if (rect.IntersectRect(figure->GetArea(), searchingRect)) {
-				auto figureDistance = figure->GetDistanceFrom(point);
+		for (auto* figure : GetModel()) {
+			if (CRect rect; rect.IntersectRect(figure->GetArea(), searchingRect)) {
+				const auto figureDistance = figure->GetDistanceFrom(point);
 				if (figureDistance <= searchingDistance && figureDistance < distance) {
 					distance	  = figureDistance;
 					nearestFigure = figure;
@@ -136,7 +130,7 @@ class CommandManager
 	std::unique_ptr<Command> currentCommand;
 
 public:
-	CommandManager(Model& model) : model(model)
+	explicit CommandManager(Model& model) : model(model)
 	{
 		SetCommand(std::make_unique<SelectCommand>());
 	}
@@ -150,26 +144,26 @@ public:
 
 	void Draw(CDC& dc)
 	{
-		if (GetCurrentCommand() != nullptr)
-			GetCurrentCommand()->Draw(dc);
+		if (auto* command = GetCurrentCommand())
+			command->Draw(dc);
 	}
 
 	void OnClick(CPoint point)
 	{
-		if (GetCurrentCommand() != nullptr)
-			GetCurrentCommand()->OnClick(point);
+		if (auto* command = GetCurrentCommand())
+			command->OnClick(point);
 	}
 
 	void OnMouseMove(CPoint point)
 	{
-		if (GetCurrentCommand() != nullptr)
-			GetCurrentCommand()->OnMouseMove(point);
+		if (auto* command = GetCurrentCommand())
+			command->OnMouseMove(point);
 	}
 
 	void OnMouseLeave()
 	{
-		if (GetCurrentCommand() != nullptr)
-			GetCurrentCommand()->OnMouseLeave();
+		if (auto* command = GetCurrentCommand())
+			command->OnMouseLeave();
 	}
 
 private:

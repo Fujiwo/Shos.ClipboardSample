@@ -12,10 +12,10 @@ using ViewBase = DoubleBufferView;
 
 class View : public ViewBase
 {
-	bool isTrackingMouseLeave;
+	bool isTrackingMouseLeave = false;
 
 public:
-	View() : isTrackingMouseLeave(false)
+	View()
 	{
 		SetBackgroundColor(GetBackgroundColor());
 	}
@@ -42,7 +42,7 @@ protected:
 
 		dc->SetMapMode(MM_ISOTROPIC);
 
-		auto documentArea = GetDocument().GetArea();
+		const auto documentArea = GetDocument().GetArea();
 		dc->SetWindowOrg(documentArea.CenterPoint());
 		dc->SetWindowExt(documentArea.Size());
 
@@ -66,13 +66,18 @@ protected:
 
 	virtual void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint) override
 	{
-		auto hint = DYNAMIC_DOWNCAST(Hint, pHint);
-		CRect area;
-		if (hint == nullptr || hint->type == Hint::Type::ViewOnly || !FigureHelper::GetArea(hint->figures, area)) {
+		const auto* hint = DYNAMIC_DOWNCAST(Hint, pHint);
+		if (hint == nullptr || hint->type == Hint::Type::ViewOnly) {
+			ViewBase::OnUpdate(pSender, lHint, pHint);
+			return;
+		}
+		const auto figureArea = FigureHelper::GetArea(hint->figures);
+		if (!figureArea) {
 			ViewBase::OnUpdate(pSender, lHint, pHint);
 			return;
 		}
 
+		auto area = *figureArea;
 		TRACE(_T("View::OnUpdate: area   (top: %d, left: %d, width: %d, height: %d)\n"), area.top, area.left, area.Width(), area.Height());
 		area = LPtoDP(area);
 		area.NormalizeRect();
@@ -96,7 +101,7 @@ protected:
 
 	afx_msg void OnEditPaste()
 	{
-		ClipboardHelper::Paste(*this, [&](CArchive& ar) { GetDocument().Paste(ar); });
+		ClipboardHelper::Paste(*this, [this](CArchive& ar) { GetDocument().Paste(ar); });
 	}
 
 	afx_msg void OnUpdateEditCopy(CCmdUI* pCmdUI)
@@ -136,7 +141,7 @@ private:
 
 	bool Copy()
 	{
-		return ClipboardHelper::Copy(GetDocument(), *this, GetDocument().GetSize(), GetBackgroundColor(), [&](CDC& dc) { GetDocument().Draw(dc); });
+		return ClipboardHelper::Copy(GetDocument(), *this, GetDocument().GetSize(), GetBackgroundColor(), [this](CDC& dc) { GetDocument().Draw(dc); });
 	}
 
 	void TrackMouseLeave()
@@ -144,20 +149,21 @@ private:
 		if (isTrackingMouseLeave)
 			return;
 
-		TRACKMOUSEEVENT trackMouseEvent{};
-		trackMouseEvent.cbSize	  = sizeof(trackMouseEvent);
-		trackMouseEvent.dwFlags	  = TME_LEAVE;
-		trackMouseEvent.hwndTrack = GetSafeHwnd();
-		isTrackingMouseLeave	  = ::TrackMouseEvent(&trackMouseEvent) != FALSE;
+		TRACKMOUSEEVENT trackMouseEvent{
+			.cbSize	   = sizeof(TRACKMOUSEEVENT),
+			.dwFlags   = TME_LEAVE,
+			.hwndTrack = GetSafeHwnd()
+		};
+		isTrackingMouseLeave = ::TrackMouseEvent(&trackMouseEvent) != FALSE;
 	}
 
 	void DrawFigures(CDC& dc, const Document& document)
 	{
 		CRect clipBox; // GetClipBox returns logical coordinates.
-		auto clippingMode = dc.GetClipBox(clipBox);
+		const auto clippingMode = dc.GetClipBox(clipBox);
 
 		if (clippingMode == SIMPLEREGION || clippingMode == COMPLEXREGION) {
-			for (auto figure : document) {
+			for (auto* figure : document) {
 				ASSERT_VALID(figure);
 				if (HasIntersection(*figure, clipBox))
 					figure->Draw(dc);
@@ -168,7 +174,7 @@ private:
 		}
 	}
 
-	bool HasIntersection(const Figure& figure, const CRect& clipBox)
+	static bool HasIntersection(const Figure& figure, const CRect& clipBox)
 	{
 		CRect intersection;
 		return intersection.IntersectRect(figure.GetArea(), clipBox) != FALSE;
