@@ -5,13 +5,14 @@
 
 class DoubleBuffer
 {
-    bool     isCashValid;
-    CBitmap  cash;
+    bool     isCacheValid;
+    CRect    invalidCacheArea; // device coordinates
+    CBitmap  cache;
     COLORREF backgroundColor;
     CView&   view;
 
 public:
-    DoubleBuffer(CView& view) : isCashValid(false), backgroundColor(::GetSysColor(COLOR_WINDOW)), view(view)
+    DoubleBuffer(CView& view) : isCacheValid(false), backgroundColor(::GetSysColor(COLOR_WINDOW)), view(view)
     {}
 
     CView& Window()
@@ -22,78 +23,81 @@ public:
     }
 
 protected:
-    class CashDevice
-    {
-        CDC                      memoryDC;
-        const GdiObjectSelector* selector;
-
-    public:
-        CashDevice(DoubleBuffer& doubleBuffer)
-        {
-            CClientDC clientDC(&doubleBuffer.Window());
-            memoryDC.CreateCompatibleDC(&clientDC);
-            selector = new GdiObjectSelector(memoryDC, doubleBuffer.cash);
-        }
-
-        virtual ~CashDevice()
-        {
-            delete selector;
-        }
-
-        operator CDC& ()
-        {
-            return memoryDC;
-        }
-    };
-
     void SetBackgroundColor(COLORREF backgroundColor)
     {
         this->backgroundColor = backgroundColor;
     }
 
+    // Invalidates the whole cache.
     void Update()
     {
-        isCashValid = false;
+        isCacheValid = false;
+    }
+
+    // Invalidates a part of the cache (in device coordinates).
+    void Update(const CRect& deviceArea)
+    {
+        invalidCacheArea.UnionRect(invalidCacheArea, deviceArea);
     }
 
     void Draw(CDC& dc)
     {
-        DrawCash(dc);
+        DrawCache(dc);
         view.OnPrepareDC(&dc);
         OnDrawLayer2(dc);
     }
 
-    virtual void OnDrawLayer1(CDC& dc) {}
-    virtual void OnDrawLayer2(CDC& dc) {}
+    virtual void OnDrawLayer1(CDC& /* dc */) {}
+    virtual void OnDrawLayer2(CDC& /* dc */) {}
 
 private:
-    void DrawCash(CDC& dc)
+    void DrawCache(CDC& dc)
     {
         CRect clientRect;
         view.GetClientRect(&clientRect);
+        if (clientRect.IsRectEmpty())
+            return;
 
         CDC   memoryDC;
         memoryDC.CreateCompatibleDC(&dc);
 
-        if (!isCashValid) {
-            cash.DeleteObject();
-            cash.CreateCompatibleBitmap(&dc, clientRect.Width(), clientRect.Height());
+        if (!isCacheValid) {
+            cache.DeleteObject();
+            if (!cache.CreateCompatibleBitmap(&dc, clientRect.Width(), clientRect.Height()))
+                return;
         }
 
-        GdiObjectSelector selector(memoryDC, cash);
+        GdiObjectSelector selector(memoryDC, cache);
 
-        if (!isCashValid) {
-            memoryDC.FillSolidRect(&clientRect, backgroundColor);
-            auto savedDC = memoryDC.SaveDC();
-            view.OnPrepareDC(&memoryDC);
-            OnDrawLayer1(memoryDC);
-            memoryDC.RestoreDC(savedDC);
-            isCashValid = true;
+        if (!isCacheValid) {
+            DrawToCache(memoryDC, clientRect);
+            isCacheValid = true;
+            invalidCacheArea.SetRectEmpty();
+        } else if (!invalidCacheArea.IsRectEmpty()) {
+            CRect area;
+            if (area.IntersectRect(invalidCacheArea, clientRect))
+                DrawToCache(memoryDC, area);
+            invalidCacheArea.SetRectEmpty();
         }
 
         CRect clipBox;
         dc.GetClipBox(&clipBox);
         dc.BitBlt(clipBox.left, clipBox.top, clipBox.Width(), clipBox.Height(), &memoryDC, clipBox.left, clipBox.top, SRCCOPY);
+    }
+
+    void DrawToCache(CDC& memoryDC, const CRect& deviceArea)
+    {
+        CRgn clipRegion;
+        clipRegion.CreateRectRgnIndirect(&deviceArea);
+        memoryDC.SelectClipRgn(&clipRegion);
+
+        memoryDC.FillSolidRect(&deviceArea, backgroundColor);
+        auto savedDC = memoryDC.SaveDC();
+        view.OnPrepareDC(&memoryDC);
+        OnDrawLayer1(memoryDC);
+        memoryDC.RestoreDC(savedDC);
+
+        memoryDC.SelectClipRgn(nullptr);
     }
 };
 
@@ -105,12 +109,14 @@ public:
     {}
 
 protected:
-    virtual void OnPaint(CDC& dc)
+    virtual void Paint(CDC& dc)
     {
         Draw(dc);
     }
 
-    virtual void OnDraw(CDC* pDC) override
+    // Drawing is done in OnPaint via the double buffer, so OnDraw is never called.
+    // (Printing and print preview are not supported.)
+    virtual void OnDraw(CDC* /* pDC */) override
     {
         ASSERT(false);
     }
@@ -118,19 +124,18 @@ protected:
     virtual void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint) override
     {
         Update();
-		TView::OnUpdate(pSender, lHint, pHint);
+        TView::OnUpdate(pSender, lHint, pHint);
     }
 
     afx_msg void OnPaint()
     {
         CPaintDC dc(this);
-        OnPaint(dc);
+        Paint(dc);
     }
 
-    afx_msg BOOL OnEraseBkgnd(CDC* pDC)
+    afx_msg BOOL OnEraseBkgnd(CDC* /* pDC */)
     {
-        //return TView::OnEraseBkgnd(pDC);
-        return true;
+        return TRUE;
     }
 
     afx_msg void OnSize(UINT nType, int cx, int cy)

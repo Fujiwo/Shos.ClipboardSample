@@ -1,6 +1,8 @@
 #pragma once
 
 #include <afx.h>
+#include <algorithm>
+#include <vector>
 #include "Observer.h"
 #include "Figure.h"
 
@@ -24,10 +26,12 @@ struct Hint : public CObject
 		figures.push_back(figure);
 	}
 
-	Hint(Type type, std::vector<Figure*> figures) : type(type), figures(figures)
+	Hint(Type type, std::vector<Figure*> figures) : figures(figures), type(type)
 	{}
 
 	Hint& operator =(const Hint& other) = delete;
+
+	DECLARE_DYNAMIC(Hint)
 };
 
 class Model : public Observable<Hint>
@@ -61,6 +65,11 @@ public:
 		return figures.end();
 	}
 
+	bool IsEmpty() const
+	{
+		return figures.empty();
+	}
+
 	void Add(Figure* figure)
 	{
 		figures.push_back(figure);
@@ -68,6 +77,7 @@ public:
 		Update(hint);
 	}
 
+	// Replaces oldFigure with newFigure. The model takes ownership of newFigure and deletes oldFigure.
 	bool Change(Figure* oldFigure, Figure* newFigure)
 	{
 		auto iterator = std::find(figures.begin(), figures.end(), oldFigure);
@@ -75,10 +85,43 @@ public:
 			return false;
 
 		*iterator = newFigure;
+		if (highlightedFigure == oldFigure)
+			highlightedFigure = nullptr;
+
 		std::vector<Figure*> changedFigures = { oldFigure, newFigure };
 		Hint hint(Hint::Type::Changed, changedFigures);
 		Update(hint);
+
+		delete oldFigure;
 		return true;
+	}
+
+	void RemoveAll()
+	{
+		if (figures.empty())
+			return;
+
+		auto removedFigures = figures;
+		figures.clear();
+		highlightedFigure = nullptr;
+
+		Hint hint(Hint::Type::Removed, removedFigures);
+		Update(hint);
+
+		for (auto figure : removedFigures)
+			delete figure;
+	}
+
+	// Adds the figures read from the archive (e.g. the clipboard).
+	void Paste(CArchive& ar)
+	{
+		auto newFigures = Load(ar);
+		if (newFigures.empty())
+			return;
+
+		figures.insert(figures.end(), newFigures.begin(), newFigures.end());
+		Hint hint(Hint::Type::Added, newFigures);
+		Update(hint);
 	}
 
 	void Select(Figure& figure)
@@ -89,12 +132,12 @@ public:
 		Update(hint);
 	}
 
-	void Hilight(const Figure* figure)
+	void Highlight(const Figure* figure)
 	{
 		highlightedFigure = figure;
 	}
 
-	const Figure* Hilight() const
+	const Figure* Highlight() const
 	{
 		return highlightedFigure;
 	}
@@ -113,12 +156,8 @@ public:
 			for (auto figure : *this)
 				ar.WriteObject(figure);
 		} else {
-			auto count = ar.ReadCount();
-			for (DWORD_PTR counter = 0L; counter < count; counter++) {
-				auto figure = STATIC_DOWNCAST(Figure, ar.ReadObject(NULL));
-				if (figure != nullptr)
-					figures.push_back(figure);
-			}
+			auto newFigures = Load(ar);
+			figures.insert(figures.end(), newFigures.begin(), newFigures.end());
 		}
 	}
 
@@ -133,16 +172,31 @@ public:
 	void AddDummyData(size_t count)
 	{
 		auto newFigures = FigureHelper::GetRandomFigures(count, GetArea());
-		std::for_each(newFigures.begin(), newFigures.end(), [&](Figure* figure) { figures.push_back(figure); });
-		
-		//for (auto figure : newFigures)
-		//	figures.push_back(figure);
+		figures.insert(figures.end(), newFigures.begin(), newFigures.end());
 
 		Hint hint(Hint::Type::Added, newFigures);
 		Update(hint);
 	}
 
 private:
+	static std::vector<Figure*> Load(CArchive& ar)
+	{
+		std::vector<Figure*> loadedFigures;
+		try {
+			auto count = ar.ReadCount();
+			for (DWORD_PTR counter = 0L; counter < count; counter++) {
+				auto figure = static_cast<Figure*>(ar.ReadObject(RUNTIME_CLASS(Figure)));
+				if (figure != nullptr)
+					loadedFigures.push_back(figure);
+			}
+		} catch (CException*) {
+			for (auto figure : loadedFigures)
+				delete figure;
+			throw;
+		}
+		return loadedFigures;
+	}
+
 	void ClearSelected()
 	{
 		std::for_each(figures.begin(), figures.end(), [](Figure* figure) { figure->Select(false); });

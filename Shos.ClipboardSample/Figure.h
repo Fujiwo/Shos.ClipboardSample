@@ -1,14 +1,12 @@
 #pragma once
 
 #include <afx.h>
+#include <algorithm>
 #include <limits>
 #include <random>
+#include <vector>
 #include "GdiObjectSelector.h"
 #include "Geometry.h"
-
-#ifdef max
-#undef max
-#endif // max
 
 struct FigureAttribute
 {
@@ -33,7 +31,7 @@ class Figure : public CObject
 	static const long	  selectorPenWidth = 5;
 	static const COLORREF selectedColor	   = RGB(0x80, 0x00, 0x40);
 	static const COLORREF areaColor		   = RGB(0x00, 0xa0, 0xff);
-	
+
 	FigureAttribute attribute;
 	bool            selected;
 
@@ -59,7 +57,7 @@ public:
 		this->selected = selected;
 	}
 
-	virtual Figure* Clone()
+	virtual Figure* Clone() const
 	{
 		return new Figure(*this);
 	}
@@ -72,7 +70,7 @@ public:
 
 		DrawShape(dc);
 		if (selected)
-			DrawSelecter(dc);
+			DrawSelector(dc);
 	}
 
 	void DrawArea(CDC& dc) const
@@ -87,16 +85,16 @@ public:
 	CRect GetArea() const
 	{
 		auto area   = GetShapeArea();
-		auto  margin = attribute.penWidth + selectorSize + selectorPenWidth;
+		auto margin = attribute.penWidth + selectorSize + selectorPenWidth;
 		area.InflateRect(margin, margin);
 		return area;
 	}
 
-	virtual long GetDistanceFrom(CPoint point) const
+	virtual long GetDistanceFrom(CPoint /* point */) const
 	{
-		return std::numeric_limits<long>::max();
+		return (std::numeric_limits<long>::max)();
 	}
-		
+
 	virtual void Serialize(CArchive& ar) override
 	{
 		CObject::Serialize(ar);
@@ -104,7 +102,7 @@ public:
 	}
 
 protected:
-	virtual void DrawShape(CDC& dc) const
+	virtual void DrawShape(CDC& /* dc */) const
 	{}
 
 	virtual CRect GetShapeArea() const
@@ -116,19 +114,19 @@ protected:
 	{
 		return std::vector<CPoint>();
 	}
-	
+
 private:
-	void DrawSelecter(CDC& dc) const
+	void DrawSelector(CDC& dc) const
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
 		CPen				pen(PS_SOLID, selectorPenWidth, selectedColor);
 		GdiObjectSelector	penSelector(dc, pen);
 
 		auto points = GetPoints();
-		std::for_each(points.begin(), points.end(), [&](const CPoint& point) { DrawSelecter(dc, point); });
+		std::for_each(points.begin(), points.end(), [&](const CPoint& point) { DrawSelector(dc, point); });
 	}
 
-	void DrawSelecter(CDC& dc, CPoint point) const
+	void DrawSelector(CDC& dc, CPoint point) const
 	{
 		CRect rect(point, point);
 		rect.InflateRect(selectorSize, selectorSize);
@@ -140,9 +138,10 @@ private:
 
 class DotFigure : public Figure
 {
-	const long radius = 10L;
-	CPoint     position;
-		
+	static constexpr long radius = 10L;
+
+	CPoint position;
+
 public:
 	DotFigure()
 	{}
@@ -153,7 +152,7 @@ public:
 	DotFigure(const CPoint& position) : position(position)
 	{}
 
-	virtual Figure* Clone() override
+	virtual Figure* Clone() const override
 	{
 		return new DotFigure(*this);
 	}
@@ -186,7 +185,7 @@ protected:
 		return CRect(position - size, position + size);
 	}
 
-	virtual std::vector<CPoint> GetPoints() const
+	virtual std::vector<CPoint> GetPoints() const override
 	{
 		return { position };
 	}
@@ -208,7 +207,7 @@ public:
 	LineFigure(CPoint start, CPoint end) : start(start), end(end)
 	{}
 
-	virtual Figure* Clone() override
+	virtual Figure* Clone() const override
 	{
 		return new LineFigure(*this);
 	}
@@ -242,7 +241,7 @@ protected:
 		return area;
 	}
 
-	virtual std::vector<CPoint> GetPoints() const
+	virtual std::vector<CPoint> GetPoints() const override
 	{
 		return { start, end };
 	}
@@ -267,6 +266,11 @@ public:
 		this->position.NormalizeRect();
 	}
 
+	virtual Figure* Clone() const override
+	{
+		return new RectangleFigureBase(*this);
+	}
+
 	virtual void Serialize(CArchive& ar) override
 	{
 		Figure::Serialize(ar);
@@ -283,7 +287,7 @@ protected:
 		return position;
 	}
 
-	virtual std::vector<CPoint> GetPoints() const
+	virtual std::vector<CPoint> GetPoints() const override
 	{
 		return Geometry::ToPoints(position);
 	}
@@ -300,20 +304,20 @@ public:
 	RectangleFigure(const CRect& position) : RectangleFigureBase(position)
 	{}
 
-	virtual Figure* Clone() override
+	virtual Figure* Clone() const override
 	{
 		return new RectangleFigure(*this);
+	}
+
+	virtual long GetDistanceFrom(CPoint point) const override
+	{
+		return Geometry::GetDistance(point, position);
 	}
 
 protected:
 	virtual void DrawShape(CDC& dc) const override
 	{
 		dc.Rectangle(&position);
-	}
-
-	virtual long GetDistanceFrom(CPoint point) const override
-	{
-		return Geometry::GetDistance(point, position);
 	}
 
 	DECLARE_SERIAL(RectangleFigure)
@@ -328,20 +332,20 @@ public:
 	EllipseFigure(const CRect& position) : RectangleFigureBase(position)
 	{}
 
-	virtual Figure* Clone() override
+	virtual Figure* Clone() const override
 	{
 		return new EllipseFigure(*this);
+	}
+
+	virtual long GetDistanceFrom(CPoint point) const override
+	{
+		return Geometry::GetDistanceToEllipse(point, position);
 	}
 
 protected:
 	virtual void DrawShape(CDC& dc) const override
 	{
 		dc.Ellipse(&position);
-	}
-
-	virtual long GetDistanceFrom(CPoint point) const override
-	{
-		return Geometry::GetDistanceToEllipse(point, position);
 	}
 
 	DECLARE_SERIAL(EllipseFigure)
@@ -358,18 +362,21 @@ public:
 	static std::vector<Figure*> GetRandomFigures(size_t count, const CRect& area)
 	{
 		std::vector<Figure*> figures;
-		for (size_t counter = 0; counter < count; counter++)
-			figures.push_back(GetRandomFigure(area));
+		for (size_t counter = 0; counter < count; counter++) {
+			auto figure = GetRandomFigure(area);
+			if (figure != nullptr)
+				figures.push_back(figure);
+		}
 		return figures;
 	}
 
-	static bool GetArea(std::vector<Figure*> figures, CRect& area)
+	static bool GetArea(const std::vector<Figure*>& figures, CRect& area)
 	{
-		if (figures.size() == 0)
+		if (figures.empty())
 			return false;
 
 		std::vector<CRect> areas(figures.size());
-		std::transform(figures.begin(), figures.end(), areas.begin(), [](Figure* figure) { return figure->GetArea(); });
+		std::transform(figures.begin(), figures.end(), areas.begin(), [](const Figure* figure) { return figure->GetArea(); });
 		return Geometry::GetArea(areas, area);
 	}
 
@@ -377,7 +384,7 @@ private:
 	static Figure* GetRandomFigure(const CRect& area)
 	{
 		Figure* figure = nullptr;
-		
+
 		switch (RandomValue(0, figureKindNumber - 1)) {
 		case 0:
 			figure = new DotFigure(RandomPosition(area));
@@ -393,8 +400,7 @@ private:
 			break;
 		default:
 			ASSERT(false);
-			figure = nullptr;
-			break;
+			return nullptr;
 		}
 		figure->Attribute().color    = RandomColor();
 		figure->Attribute().penWidth = RandomValue(0, 5);
@@ -406,10 +412,11 @@ private:
 		return CPoint(RandomValue(area.left, area.right), RandomValue(area.top, area.bottom));
 	}
 
-	static LONG RandomValue(long minimum, long maxmum)
+	static long RandomValue(long minimum, long maximum)
 	{
-		return minimum + mt() % (maxmum - minimum + 1);
-	};
+		std::uniform_int_distribution<long> distribution(minimum, maximum);
+		return distribution(mt);
+	}
 
 	static COLORREF RandomColor()
 	{

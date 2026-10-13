@@ -4,38 +4,41 @@
 #include "DoubleBuffer.h"
 #include "ClipboardHelper.h"
 
-class View : public
 #ifdef SCROLL_VIEW
-	DoubleBufferScrollView
+using ViewBase = DoubleBufferScrollView;
 #else // SCROLL_VIEW
-	DoubleBufferView
-#endif // SCROLL_VIEW 
+using ViewBase = DoubleBufferView;
+#endif // SCROLL_VIEW
+
+class View : public ViewBase
 {
+	bool isTrackingMouseLeave;
+
 public:
-	View()
+	View() : isTrackingMouseLeave(false)
 	{
 		SetBackgroundColor(GetBackgroundColor());
 	}
-	
+
 protected:
 	Document& GetDocument() const
 	{
 		ASSERT_VALID(m_pDocument);
-		return reinterpret_cast<Document&>(*m_pDocument);
+		return *STATIC_DOWNCAST(Document, m_pDocument);
 	}
 
 #ifdef SCROLL_VIEW
 	virtual void OnInitialUpdate() override
 	{
-		DoubleBufferScrollView::OnInitialUpdate();
+		ViewBase::OnInitialUpdate();
 		SetScrollSizes(MM_TEXT, GetDocument().GetSize());
 	}
-#endif // SCROLL_VIEW 
+#endif // SCROLL_VIEW
 
 #ifndef SCROLL_VIEW
 	virtual void OnPrepareDC(CDC* dc, CPrintInfo* pInfo = nullptr) override
 	{
-		DoubleBufferView::OnPrepareDC(dc, pInfo);
+		ViewBase::OnPrepareDC(dc, pInfo);
 
 		dc->SetMapMode(MM_ISOTROPIC);
 
@@ -50,75 +53,79 @@ protected:
 	}
 #endif // SCROLL_VIEW
 
-	//virtual void OnDraw(CDC* pDC) override
-	//{
-	//	DrawFigures(*pDC, GetDocument());
-	//}
-
-	virtual void OnDrawLayer1(CDC& dc)
+	virtual void OnDrawLayer1(CDC& dc) override
 	{
 		GetDocument().DrawArea(dc);
 		DrawFigures(dc, GetDocument());
 	}
 
-	virtual void OnDrawLayer2(CDC& dc)
+	virtual void OnDrawLayer2(CDC& dc) override
 	{
 		GetDocument().DrawCommand(dc);
 	}
 
 	virtual void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint) override
 	{
-		Update();
-
-		if (pHint == nullptr || static_cast<Hint*>(pHint)->type == Hint::Type::ViewOnly) {
-			#ifdef SCROLL_VIEW
-			DoubleBufferScrollView
-			#else // SCROLL_VIEW
-			DoubleBufferView
-			#endif // SCROLL_VIEW 
-								  ::OnUpdate(pSender, lHint, pHint);
+		auto hint = DYNAMIC_DOWNCAST(Hint, pHint);
+		CRect area;
+		if (hint == nullptr || hint->type == Hint::Type::ViewOnly || !FigureHelper::GetArea(hint->figures, area)) {
+			ViewBase::OnUpdate(pSender, lHint, pHint);
 			return;
 		}
 
-		CRect area;
-		FigureHelper::GetArea(static_cast<Hint*>(pHint)->figures, area);
-		
 		TRACE(_T("View::OnUpdate: area   (top: %d, left: %d, width: %d, height: %d)\n"), area.top, area.left, area.Width(), area.Height());
 		area = LPtoDP(area);
+		area.NormalizeRect();
+		area.InflateRect(1, 1); // margin for rounding errors in coordinate conversion
 		TRACE(_T("View::OnUpdate: clipbox(top: %d, left: %d, width: %d, height: %d)\n"), area.top, area.left, area.Width(), area.Height());
 
+		Update(area);
 		InvalidateRect(area);
 	}
 
 	afx_msg void OnEditCopy()
 	{
-		ClipboardHelper::OnEditCopy(GetDocument(), *this, GetDocument().GetSize(), GetBackgroundColor(), [&](CDC& dc) { GetDocument().Draw(dc); });
+		Copy();
 	}
 
 	afx_msg void OnEditCut()
 	{
-		ClipboardHelper::OnEditCut(GetDocument(), *this, GetDocument().GetSize(), GetBackgroundColor(), [&](CDC& dc) { GetDocument().Draw(dc); });
+		if (Copy())
+			GetDocument().RemoveAll();
 	}
 
 	afx_msg void OnEditPaste()
 	{
-		ClipboardHelper::OnEditPaste(GetDocument(), *this);
+		ClipboardHelper::Paste(*this, [&](CArchive& ar) { GetDocument().Paste(ar); });
 	}
 
-	afx_msg void OnLButtonUp(UINT nFlags, CPoint point)
+	afx_msg void OnUpdateEditCopy(CCmdUI* pCmdUI)
+	{
+		pCmdUI->Enable(!GetDocument().IsEmpty());
+	}
+
+	afx_msg void OnUpdateEditPaste(CCmdUI* pCmdUI)
+	{
+		pCmdUI->Enable(ClipboardHelper::CanPaste());
+	}
+
+	afx_msg void OnLButtonUp(UINT /* nFlags */, CPoint point)
 	{
 		GetDocument().OnClick(DPtoLP(point));
 	}
 
-	afx_msg void OnMouseMove(UINT nFlags, CPoint point)
+	afx_msg void OnMouseMove(UINT /* nFlags */, CPoint point)
 	{
+		TrackMouseLeave();
 		GetDocument().OnMouseMove(DPtoLP(point));
 		Invalidate();
 	}
 
-	afx_msg void OnDestroyClipboard()
+	afx_msg void OnMouseLeave()
 	{
-		ClipboardHelper::OnDestroyClipboard();
+		isTrackingMouseLeave = false;
+		GetDocument().OnMouseLeave();
+		Invalidate();
 	}
 
 private:
@@ -126,14 +133,30 @@ private:
 	{
 		return ::GetSysColor(COLOR_WINDOW);
 	}
-	
+
+	bool Copy()
+	{
+		return ClipboardHelper::Copy(GetDocument(), *this, GetDocument().GetSize(), GetBackgroundColor(), [&](CDC& dc) { GetDocument().Draw(dc); });
+	}
+
+	void TrackMouseLeave()
+	{
+		if (isTrackingMouseLeave)
+			return;
+
+		TRACKMOUSEEVENT trackMouseEvent{};
+		trackMouseEvent.cbSize	  = sizeof(trackMouseEvent);
+		trackMouseEvent.dwFlags	  = TME_LEAVE;
+		trackMouseEvent.hwndTrack = GetSafeHwnd();
+		isTrackingMouseLeave	  = ::TrackMouseEvent(&trackMouseEvent) != FALSE;
+	}
+
 	void DrawFigures(CDC& dc, const Document& document)
 	{
-		CRect clipBox;
+		CRect clipBox; // GetClipBox returns logical coordinates.
 		auto clippingMode = dc.GetClipBox(clipBox);
 
 		if (clippingMode == SIMPLEREGION || clippingMode == COMPLEXREGION) {
-			dc.DPtoLP(clipBox);
 			for (auto figure : document) {
 				ASSERT_VALID(figure);
 				if (HasIntersection(*figure, clipBox))
@@ -142,14 +165,13 @@ private:
 		}
 		else {
 			ASSERT(false);
-			//document.Draw(dc);
 		}
 	}
 
 	bool HasIntersection(const Figure& figure, const CRect& clipBox)
 	{
 		CRect intersection;
-		return intersection.IntersectRect(figure.GetArea(), clipBox);
+		return intersection.IntersectRect(figure.GetArea(), clipBox) != FALSE;
 	}
 
 	CPoint DPtoLP(CPoint point)

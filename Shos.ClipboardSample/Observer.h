@@ -6,6 +6,8 @@ template <typename THint>
 class Observer
 {
 public:
+	virtual ~Observer() = default;
+
 	virtual void Update(THint& hint) = 0;
 };
 
@@ -22,7 +24,7 @@ public:
 
 	void RemoveObserver(Observer<THint>& observer)
 	{
-		std::remove(observers.begin(), observers.end(), &observer);
+		std::erase(observers, &observer);
 	}
 
 	void Update(THint& hint)

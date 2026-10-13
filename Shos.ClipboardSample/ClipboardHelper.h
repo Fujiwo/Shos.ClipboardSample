@@ -1,164 +1,194 @@
 #pragma once
 
 #include <afx.h>
+#include <afxwin.h>
+#include <atlimage.h>
+#include <shlwapi.h>
 #include <functional>
+
+#pragma comment(lib, "shlwapi.lib")
 
 class ClipboardHelper
 {
-    static HGLOBAL globalMemoryHandle;
-	
+    // Opens the clipboard and closes it on destruction (even when an exception is thrown).
+    class ClipboardOpener
+    {
+        const bool isOpened;
+
+    public:
+        ClipboardOpener(CWnd& window) : isOpened(window.OpenClipboard() != FALSE)
+        {}
+
+        ~ClipboardOpener()
+        {
+            if (isOpened)
+                ::CloseClipboard();
+        }
+
+        bool IsOpened() const
+        {
+            return isOpened;
+        }
+
+        ClipboardOpener(const ClipboardOpener&) = delete;
+        ClipboardOpener& operator=(const ClipboardOpener&) = delete;
+    };
+
 public:
-    static bool OnEditCopy(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
+    static UINT GetClipboardFormat()
     {
-        if (!view.OpenClipboard())
+        static const UINT clipboardFormat = ::RegisterClipboardFormat(_T("Shos.ClipboardSample.Figures"));
+        return clipboardFormat;
+    }
+
+    static bool CanPaste()
+    {
+        return ::IsClipboardFormatAvailable(GetClipboardFormat()) != FALSE;
+    }
+
+    static bool Copy(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
+    {
+        ClipboardOpener clipboardOpener(view);
+        if (!clipboardOpener.IsOpened() || !::EmptyClipboard())
             return false;
-        ::EmptyClipboard();
-        CopyMetaFileToClipboard(document, view, draw);
-        CopyImageToClipboard(size, backgroundColor, draw);
-        CopyDataToClipboard(document);
-        ::CloseClipboard();
-        return true;
+
+        try {
+            CopyMetaFileToClipboard(view, draw);
+            CopyImageToClipboard(size, backgroundColor, draw);
+            return CopyDataToClipboard(document);
+        } catch (CException* exception) {
+            exception->Delete();
+            return false;
+        }
     }
 
-    static bool OnEditCut(CDocument& document, CWnd& view, CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
+    static bool Paste(CWnd& view, std::function<void(CArchive&)> paste)
     {
-        if (OnEditCopy(document, view, size, backgroundColor, draw)) {
-			document.DeleteContents();
-            view.Invalidate();
-            return true;
-        }
-        return false;
-    }
+        ClipboardOpener clipboardOpener(view);
+        if (!clipboardOpener.IsOpened())
+            return false;
 
-    static bool OnEditPaste(CDocument& document, CWnd& view)
-    {
-        if (!view.OpenClipboard())
-			return false;
-        if (AddDataFromClipboard(document)) {
-            document.SetModifiedFlag();
-            view.Invalidate();
+        const HANDLE clipboardData = ::GetClipboardData(GetClipboardFormat());
+        if (clipboardData == nullptr)
+            return false;
+
+        bool succeeded = false;
+        CSharedFile sharedFile;
+        sharedFile.SetHandle(clipboardData, FALSE);
+        try {
+            CArchive ar(&sharedFile, CArchive::load);
+            paste(ar);
+            ar.Close();
+            succeeded = true;
+        } catch (CException* exception) {
+            exception->Delete();
         }
-        ::CloseClipboard();
-        return true;
-    }
-	
-    static void OnDestroyClipboard()
-    {
-        // on WM_DESTROYCLIPBOARD
-        if (globalMemoryHandle != nullptr) {
-            ::GlobalUnlock(globalMemoryHandle);
-            ::GlobalFree(globalMemoryHandle);
-            globalMemoryHandle = nullptr;
-        }
+        // The memory is owned by the clipboard, so it must not be freed by sharedFile.
+        sharedFile.Detach();
+        return succeeded;
     }
 
 private:
-    static void CopyMetaFileToClipboard(CDocument& document, CWnd& view, std::function<void(CDC&)> draw)
+    static bool CopyMetaFileToClipboard(CWnd& view, std::function<void(CDC&)> draw)
     {
         CClientDC   clientDC(&view);
         CMetaFileDC metaDC;
-        metaDC.CreateEnhanced(&clientDC, NULL, NULL, NULL);
+        if (!metaDC.CreateEnhanced(&clientDC, nullptr, nullptr, nullptr))
+            return false;
         draw(metaDC);
         const HENHMETAFILE enhancedMetaFileHandle = metaDC.CloseEnhanced();
+        if (enhancedMetaFileHandle == nullptr)
+            return false;
 
-        ::SetClipboardData(CF_ENHMETAFILE, CopyEnhMetaFile(enhancedMetaFileHandle, NULL));
-        ::DeleteEnhMetaFile(enhancedMetaFileHandle);
+        // On success, the clipboard owns the handle.
+        if (::SetClipboardData(CF_ENHMETAFILE, enhancedMetaFileHandle) == nullptr) {
+            ::DeleteEnhMetaFile(enhancedMetaFileHandle);
+            return false;
+        }
+        return true;
     }
-	
-    static void CopyDataToClipboard(CDocument& document)
+
+    static bool CopyDataToClipboard(CDocument& document)
     {
         CSharedFile sharedFile;
         {
             CArchive ar(&sharedFile, CArchive::store);
             document.Serialize(ar);
         }
-        globalMemoryHandle = sharedFile.Detach();
+        const HGLOBAL dataHandle = sharedFile.Detach();
 
-        ::SetClipboardData(CF_PRIVATEFIRST, globalMemoryHandle);
-    }
-
-    static bool AddDataFromClipboard(CDocument& document)
-    {
-        const HANDLE clipboardData = ::GetClipboardData(CF_PRIVATEFIRST);
-        if (clipboardData == nullptr)
+        // On success, the clipboard owns the handle.
+        if (::SetClipboardData(GetClipboardFormat(), dataHandle) == nullptr) {
+            ::GlobalFree(dataHandle);
             return false;
-
-        CSharedFile sharedFile;
-        sharedFile.SetHandle(clipboardData);
-        {
-            CArchive ar(&sharedFile, CArchive::load);
-            document.Serialize(ar);
         }
-        sharedFile.Detach();
-        document.SetModifiedFlag();
         return true;
     }
 
-    static bool CreateImage(CImage& image, CSize size, std::function<void(CDC&)> draw, COLORREF color = RGB(0x00, 0x00, 0x00))
+    static bool CreateImage(CImage& image, CSize size, std::function<void(CDC&)> draw, COLORREF backgroundColor)
     {
         if (!image.Create(size.cx, size.cy, 24))
             return false;
 
         CDC* dc = CDC::FromHandle(image.GetDC());
-        if (color != RGB(0x00, 0x00, 0x00)) {
-            const CRect area(CPoint(), size);
-            dc->FillSolidRect(&area, color);
-        }
+        const CRect area(CPoint(), size);
+        dc->FillSolidRect(&area, backgroundColor);
         draw(*dc);
         image.ReleaseDC();
 
         return true;
     }
 
-    static HGLOBAL ToImageStream(const CImage& image)
+    // Converts the image to a DIB (a BMP file without BITMAPFILEHEADER).
+    static HGLOBAL ToDibHandle(const CImage& image)
     {
-        IStream*        stream       = nullptr;
-        HRESULT         result       = ::CreateStreamOnHGlobal(0, TRUE, &stream);
-        if (!SUCCEEDED(result))
+        CComPtr<IStream> stream;
+        if (FAILED(::CreateStreamOnHGlobal(nullptr, TRUE, &stream)))
             return nullptr;
 
-        result                       = image.Save(stream, Gdiplus::ImageFormatBMP);
-        if (!SUCCEEDED(result)) {
-            stream->Release();
+        if (FAILED(image.Save(stream, Gdiplus::ImageFormatBMP)))
+            return nullptr;
+
+        ULARGE_INTEGER streamSize{};
+        if (FAILED(::IStream_Size(stream, &streamSize)) || FAILED(::IStream_Reset(stream)))
+            return nullptr;
+
+        BITMAPFILEHEADER bitmapFileHeader{};
+        if (streamSize.QuadPart <= sizeof(bitmapFileHeader) || FAILED(::IStream_Read(stream, &bitmapFileHeader, sizeof(bitmapFileHeader))))
+            return nullptr;
+
+        const auto    dibSize   = static_cast<ULONG>(streamSize.QuadPart - sizeof(bitmapFileHeader));
+        const HGLOBAL dibHandle = ::GlobalAlloc(GHND, dibSize);
+        if (dibHandle == nullptr)
+            return nullptr;
+
+        const auto    dib    = ::GlobalLock(dibHandle);
+        const HRESULT result = dib == nullptr ? E_OUTOFMEMORY : ::IStream_Read(stream, dib, dibSize);
+        if (dib != nullptr)
+            ::GlobalUnlock(dibHandle);
+
+        if (FAILED(result)) {
+            ::GlobalFree(dibHandle);
             return nullptr;
         }
-
-        ULARGE_INTEGER  streamSize{};
-        result                       = ::IStream_Size(stream, &streamSize);
-        ASSERT(SUCCEEDED(result));
-
-        const ULONG     streamLength = (ULONG)streamSize.LowPart;
-        result                       = ::IStream_Reset(stream);
-        ASSERT(SUCCEEDED(result));
-
-        constexpr ULONG bitmapFileHeaderSize = (ULONG)sizeof(BITMAPFILEHEADER);
-        const ULONG     actualStreamLength   = streamLength - bitmapFileHeaderSize;
-        const HGLOBAL   imageHandle          = ::GlobalAlloc(GHND, actualStreamLength);
-        if (imageHandle == nullptr) {
-            stream->Release();
-            return nullptr;
-        }
-
-        auto        byteArray      = static_cast<BYTE*>(::GlobalLock(imageHandle));
-        result                          = ::IStream_Read(stream, byteArray, bitmapFileHeaderSize);
-        ASSERT(SUCCEEDED(result));
-
-        result                           = ::IStream_Read(stream, byteArray, actualStreamLength);
-        ASSERT(SUCCEEDED(result));
-        ::GlobalUnlock(imageHandle);
-        stream->Release();
-
-        return imageHandle;
+        return dibHandle;
     }
 
     static bool CopyImageToClipboard(CSize size, COLORREF backgroundColor, std::function<void(CDC&)> draw)
     {
         CImage image;
-        CreateImage(image, size, draw, backgroundColor);
-        HGLOBAL imageStream = ToImageStream(image);
-        if (imageStream == nullptr)
+        if (!CreateImage(image, size, draw, backgroundColor))
             return false;
-        ::SetClipboardData(CF_DIB, imageStream);
+
+        const HGLOBAL dibHandle = ToDibHandle(image);
+        if (dibHandle == nullptr)
+            return false;
+
+        // On success, the clipboard owns the handle.
+        if (::SetClipboardData(CF_DIB, dibHandle) == nullptr) {
+            ::GlobalFree(dibHandle);
+            return false;
+        }
         return true;
     }
 };

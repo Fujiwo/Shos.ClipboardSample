@@ -1,7 +1,5 @@
 ﻿#include "pch.h"
 #include "framework.h"
-#include "afxwinappex.h"
-#include "afxdialogex.h"
 #include "Application.h"
 #include "MainFrame.h"
 #include "Document.h"
@@ -22,8 +20,6 @@ BOOL Application::InitInstance()
 	CWinApp::InitInstance();
 
 	auto pDocTemplate = new CSingleDocTemplate(IDR_MAINFRAME, RUNTIME_CLASS(Document), RUNTIME_CLASS(MainFrame), RUNTIME_CLASS(View));
-	if (!pDocTemplate)
-		return FALSE;
 	AddDocTemplate(pDocTemplate);
 
 	CCommandLineInfo cmdInfo;

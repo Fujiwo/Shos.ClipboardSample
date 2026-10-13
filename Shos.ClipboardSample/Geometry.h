@@ -1,11 +1,11 @@
 #pragma once
 
 #include <afx.h>
+#include <cmath>
+#include <cstdlib>
+#include <limits>
+#include <numbers>
 #include <vector>
-
-#ifdef max
-#undef max
-#endif // max
 
 class Geometry
 {
@@ -15,30 +15,31 @@ public:
     {
         return x * x;
     }
+
     static long Round(double x)
     {
-        return static_cast<long>(floor(x + 0.5));
+        return std::lround(x);
     }
-	
+
     // absolute value
     static long Abs(CPoint point)
     {
-        return Round(sqrt(static_cast<double>(Square(point.x) + Square(point.y))));
+        return Round(std::sqrt(Square(static_cast<double>(point.x)) + Square(static_cast<double>(point.y))));
     }
-	
+
     static long Abs(CSize size)
     {
-        return Round(sqrt(static_cast<double>(Square(size.cx) + Square(size.cy))));
+        return Round(std::sqrt(Square(static_cast<double>(size.cx)) + Square(static_cast<double>(size.cy))));
     }
 
     static long GetDistance(CPoint point1, CPoint point2)
     {
         return Abs(point2 - point1);
     }
-	
+
     static long GetDistanceToLineSegment(CPoint point, CPoint start, CPoint end)
     {
-        auto d  = end   - start;
+        auto d      = end - start;
         auto length = Abs(d);
         if (length == 0)
             return GetDistance(point, start);
@@ -49,66 +50,82 @@ public:
         auto f0 = Mul(d, d1);
         auto f1 = Mul(d, d2);
 
-        return f0 > 0 ? Abs(d1)
-            : (f1 < 0 ? Abs(d2) : abs(d.cy * d1.cx - d.cx * d1.cy) / length);
+        if (f0 > 0)
+            return Abs(d1);
+        if (f1 < 0)
+            return Abs(d2);
+
+        // outer product / length
+        const auto outerProduct = static_cast<long long>(d.cy) * d1.cx - static_cast<long long>(d.cx) * d1.cy;
+        return static_cast<long>(std::llabs(outerProduct) / length);
     }
 
     static long GetDistance(CPoint point, const CRect& rect)
     {
-        auto points = ToPoints(rect);
-        auto distance = std::numeric_limits<long>::max();
+        return GetDistanceToPolygon(point, ToPoints(rect));
+    }
+
+    // Approximates the ellipse with a polygon and returns the distance from its outline.
+    static long GetDistanceToEllipse(CPoint point, const CRect& rect)
+    {
+        if (rect.Width() == 0 || rect.Height() == 0)
+            return GetDistanceToLineSegment(point, rect.TopLeft(), rect.BottomRight());
+
+        constexpr int divisionNumber = 72;
+
+        const auto   center  = rect.CenterPoint();
+        const double radiusX = std::abs(rect.Width ()) / 2.0;
+        const double radiusY = std::abs(rect.Height()) / 2.0;
+
+        std::vector<CPoint> points;
+        points.reserve(divisionNumber);
+        for (int index = 0; index < divisionNumber; index++) {
+            const double angle = 2.0 * std::numbers::pi * index / divisionNumber;
+            points.emplace_back(center.x + Round(radiusX * std::cos(angle)), center.y + Round(radiusY * std::sin(angle)));
+        }
+        return GetDistanceToPolygon(point, points);
+    }
+
+    static long GetDistanceToPolygon(CPoint point, const std::vector<CPoint>& points)
+    {
+        auto distance = (std::numeric_limits<long>::max)();
 
         for (size_t index = 0; index < points.size(); index++) {
             auto eachDistance = GetDistanceToLineSegment(point, points[index], points[(index + 1) % points.size()]);
-			if (eachDistance < distance)
+            if (eachDistance < distance)
                 distance = eachDistance;
         }
         return distance;
     }
 
-    static long GetDistanceToEllipse(CPoint point, const CRect& rect)
-    {
-		if (rect.Width() == 0 || rect.Height() == 0)
-			return GetDistanceToLineSegment(point, rect.TopLeft(), rect.BottomRight());
-
-        auto rate = rect.Height() / (double)rect.Width();
-
-		auto d = point - rect.CenterPoint();
-		d.cx = Round(d.cx * rate);
-
-		auto distance = Abs(d) - rect.Height() / 2;
-        distance = Round(distance / rate);
-
-        return distance;
-    }
-
     // inner product
-    static long Mul(CPoint point1, CPoint point2)
+    static long long Mul(CPoint point1, CPoint point2)
     {
-        return point1.x * point2.x + point1.y * point2.y;
+        return static_cast<long long>(point1.x) * point2.x + static_cast<long long>(point1.y) * point2.y;
     }
 
-    static long Mul(CSize size1, CSize size2)
+    static long long Mul(CSize size1, CSize size2)
     {
-        return size1.cx * size2.cx + size1.cy * size2.cy;
+        return static_cast<long long>(size1.cx) * size2.cx + static_cast<long long>(size1.cy) * size2.cy;
     }
 
     static std::vector<CPoint> ToPoints(const CRect& rect)
     {
-		return { rect.TopLeft(), CPoint(rect.right, rect.top), rect.BottomRight(), CPoint(rect.left, rect.bottom) };
+        return { rect.TopLeft(), CPoint(rect.right, rect.top), rect.BottomRight(), CPoint(rect.left, rect.bottom) };
     }
-	
-	static bool GetArea(const std::vector<CRect>& areas, CRect& area)
-	{
-		if (areas.size() == 0)
-			return false;
 
-		area = areas[0];
-		for (auto index = 1; index < areas.size(); index++) {
-			auto eachArea = areas[index];
-			eachArea.NormalizeRect();
-			area.UnionRect(area, eachArea);
-		}
-		return true;
-	}
+    static bool GetArea(const std::vector<CRect>& areas, CRect& area)
+    {
+        if (areas.empty())
+            return false;
+
+        area = areas[0];
+        area.NormalizeRect();
+        for (size_t index = 1; index < areas.size(); index++) {
+            auto eachArea = areas[index];
+            eachArea.NormalizeRect();
+            area.UnionRect(area, eachArea);
+        }
+        return true;
+    }
 };

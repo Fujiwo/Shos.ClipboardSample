@@ -6,7 +6,7 @@
 class Document : public CDocument, public Observer<Hint>
 {
 	static const COLORREF areaColor = RGB(0xff, 0xf0, 0xe0);
-	
+
 	Model		   model;
 	CommandManager commandManager;
 
@@ -31,10 +31,19 @@ public:
 		return model.end();
 	}
 
-	void Add(Figure* figure)
+	bool IsEmpty() const
 	{
-		model.Add(figure);
-		SetModifiedFlag();
+		return model.IsEmpty();
+	}
+
+	void RemoveAll()
+	{
+		model.RemoveAll();
+	}
+
+	void Paste(CArchive& ar)
+	{
+		model.Paste(ar);
 	}
 
 	void Draw(CDC& dc) const
@@ -56,14 +65,20 @@ public:
 
 	void OnClick(CPoint point)
 	{
-		if (IsValid(point))
-			commandManager.OnClick(point);
+		commandManager.OnClick(point);
 	}
 
 	void OnMouseMove(CPoint point)
 	{
 		if (IsValid(point))
 			commandManager.OnMouseMove(point);
+		else
+			commandManager.OnMouseLeave();
+	}
+
+	void OnMouseLeave()
+	{
+		commandManager.OnMouseLeave();
 	}
 
 protected:
@@ -74,12 +89,12 @@ protected:
 		UpdateAllViews(nullptr, 0, &hint);
 	}
 
-	virtual void Serialize(CArchive& ar)
+	virtual void Serialize(CArchive& ar) override
 	{
 		model.Serialize(ar);
 	}
 
-	virtual void DeleteContents()
+	virtual void DeleteContents() override
 	{
 		model.Clear();
 		CDocument::DeleteContents();
@@ -94,7 +109,7 @@ protected:
 private:
 	bool IsValid(CPoint point)
 	{
-		return GetArea().PtInRect(point);
+		return GetArea().PtInRect(point) != FALSE;
 	}
 
 	DECLARE_DYNCREATE(Document)

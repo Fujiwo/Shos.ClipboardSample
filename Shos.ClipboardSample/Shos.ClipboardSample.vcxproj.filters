@@ -71,6 +71,9 @@
     <ClCompile Include="MainFrame.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="Model.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="Document.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
