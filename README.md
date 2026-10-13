@@ -1,8 +1,12 @@
 # [C++/MFC] Shos.ClipboardSample
 
+English | [日本語](README.jp.md)
+
 A small MFC (C++) sample that shows how to **copy figures to the Windows clipboard in several formats at once** and **paste them back** using an application-specific format.
 
 The application is a simple figure editor. You can create random figures (dots, lines, rectangles and ellipses), select them with the mouse, and copy, cut or paste the whole drawing.
+
+![Shos.ClipboardSample: random figures in the drawing area, with the Edit menu open (Paste is disabled because the clipboard has no figures)](Images/Shos.ClipboardSample.png)
 
 ## What This Sample Demonstrates
 
