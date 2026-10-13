@@ -169,4 +169,7 @@ private:
 		ASSERT_VALID(currentCommand);
 		return currentCommand;
 	}
+
+	CommandManager(const CommandManager& other) = delete;
+	CommandManager& operator=(const CommandManager& other) = delete;
 };

@@ -25,7 +25,7 @@ protected:
 	}
 
 #ifdef SCROLL_VIEW
-	virtual void View::OnInitialUpdate() override
+	virtual void OnInitialUpdate() override
 	{
 		DoubleBufferScrollView::OnInitialUpdate();
 		SetScrollSizes(MM_TEXT, GetDocument().GetSize());

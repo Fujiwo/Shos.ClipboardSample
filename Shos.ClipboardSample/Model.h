@@ -17,6 +17,8 @@ struct Hint : public CObject
 	std::vector<Figure*> figures;
 	Type				 type;
 
+	Hint(const Hint& other) = delete;
+
 	Hint(Type type, Figure* figure) : type(type)
 	{
 		figures.push_back(figure);
@@ -24,6 +26,8 @@ struct Hint : public CObject
 
 	Hint(Type type, std::vector<Figure*> figures) : type(type), figures(figures)
 	{}
+
+	Hint& operator =(const Hint& other) = delete;
 };
 
 class Model : public Observable<Hint>
@@ -60,7 +64,8 @@ public:
 	void Add(Figure* figure)
 	{
 		figures.push_back(figure);
-		Update(Hint(Hint::Type::Added, figure));
+		Hint hint(Hint::Type::Added, figure);
+		Update(hint);
 	}
 
 	bool Change(Figure* oldFigure, Figure* newFigure)
@@ -71,7 +76,8 @@ public:
 
 		*iterator = newFigure;
 		std::vector<Figure*> changedFigures = { oldFigure, newFigure };
-		Update(Hint(Hint::Type::Changed, changedFigures));
+		Hint hint(Hint::Type::Changed, changedFigures);
+		Update(hint);
 		return true;
 	}
 
@@ -79,7 +85,8 @@ public:
 	{
 		ClearSelected();
 		figure.Select(true);
-		Update(Hint(Hint::Type::ViewOnly, std::vector<Figure*>()));
+		Hint hint(Hint::Type::ViewOnly, std::vector<Figure*>());
+		Update(hint);
 	}
 
 	void Hilight(const Figure* figure)
@@ -95,7 +102,8 @@ public:
 	void UnSelectAll()
 	{
 		ClearSelected();
-		Update(Hint(Hint::Type::ViewOnly, std::vector<Figure*>()));
+		Hint hint(Hint::Type::ViewOnly, std::vector<Figure*>());
+		Update(hint);
 	}
 
 	virtual void Serialize(CArchive& ar)
@@ -104,9 +112,7 @@ public:
 			ar.WriteCount(figures.size());
 			for (auto figure : *this)
 				ar.WriteObject(figure);
-		}
-		else
-		{
+		} else {
 			auto count = ar.ReadCount();
 			for (DWORD_PTR counter = 0L; counter < count; counter++) {
 				auto figure = STATIC_DOWNCAST(Figure, ar.ReadObject(NULL));
@@ -132,7 +138,8 @@ public:
 		//for (auto figure : newFigures)
 		//	figures.push_back(figure);
 
-		Update(Hint(Hint::Type::Added, newFigures));
+		Hint hint(Hint::Type::Added, newFigures);
+		Update(hint);
 	}
 
 private:
@@ -140,4 +147,7 @@ private:
 	{
 		std::for_each(figures.begin(), figures.end(), [](Figure* figure) { figure->Select(false); });
 	}
+
+	Model(const Model& other) = delete;
+	Model& operator=(const Model& other) = delete;
 };
