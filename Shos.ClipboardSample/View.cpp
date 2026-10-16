@@ -22,6 +22,7 @@ BEGIN_MESSAGE_MAP(View, DoubleBufferView)
 	ON_COMMAND(ID_EDIT_CUT, OnEditCut)
 	ON_COMMAND(ID_EDIT_PASTE, OnEditPaste)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_COPY, OnUpdateEditCopy)
+	// Cut is enabled under the same condition as Copy.
 	ON_UPDATE_COMMAND_UI(ID_EDIT_CUT, OnUpdateEditCopy)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_PASTE, OnUpdateEditPaste)
 	ON_WM_LBUTTONUP()

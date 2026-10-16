@@ -12,9 +12,11 @@
 #include "GdiObjectSelector.h"
 #include "Geometry.h"
 
+// Drawing attributes common to all the figures.
 struct FigureAttribute
 {
 	COLORREF color	  = RGB(0x00, 0x00, 0x00);
+	// Pen width in logical units (0 means a line one pixel wide).
 	int      penWidth = 0;
 
 	void Serialize(CArchive& ar)
@@ -26,8 +28,12 @@ struct FigureAttribute
 	}
 };
 
+// Base class of all the figures. Coordinates are logical (document) coordinates.
+// Figures are serializable (DECLARE_SERIAL), so they can be saved to a file and copied to the clipboard.
+// Derived classes override DrawShape, GetShapeArea, GetPoints and GetDistanceFrom.
 class Figure : public CObject
 {
+	// Appearance of the selection handles and of the highlight outline.
 	static constexpr long	  selectorSize	   = 10L;
 	static constexpr long	  selectorPenWidth = 5;
 	static constexpr COLORREF selectedColor	   = RGB(0x80, 0x00, 0x40);
@@ -50,19 +56,23 @@ public:
 	Figure() = default;
 
 	// CObject is not copyable, so the copy constructor must be written explicitly.
+	// Clone() relies on the copy constructors of the derived classes.
 	Figure(const Figure& another) : attribute(another.attribute), selected(another.selected)
 	{}
 
+	// Selected figures are drawn with handles at their characteristic points.
 	void Select(bool selected)
 	{
 		this->selected = selected;
 	}
 
+	// Returns a copy allocated with new. The caller takes ownership.
 	virtual Figure* Clone() const
 	{
 		return new Figure(*this);
 	}
 
+	// Draws the outline of the shape (not filled) with the attribute, and the handles when selected.
 	void Draw(CDC& dc) const
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
@@ -74,6 +84,7 @@ public:
 			DrawSelector(dc);
 	}
 
+	// Outlines the area of the figure (used to highlight it).
 	void DrawArea(CDC& dc) const
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
@@ -83,6 +94,8 @@ public:
 		dc.Rectangle(GetArea());
 	}
 
+	// Returns the bounding rectangle of everything drawn for the figure,
+	// i.e. the shape plus the pen width and the selection handles. Used for redrawing and hit testing.
 	CRect GetArea() const
 	{
 		auto area   = GetShapeArea();
@@ -91,6 +104,7 @@ public:
 		return area;
 	}
 
+	// Returns the distance from the point to the figure (used to find the figure nearest to the mouse).
 	virtual long GetDistanceFrom(CPoint /* point */) const
 	{
 		return (std::numeric_limits<long>::max)();
@@ -98,25 +112,30 @@ public:
 
 	virtual void Serialize(CArchive& ar) override
 	{
+		// Derived classes call this first, then serialize their own data.
 		CObject::Serialize(ar);
 		attribute.Serialize(ar);
 	}
 
 protected:
+	// Draws the shape itself with the pen and the brush currently selected into the DC.
 	virtual void DrawShape(CDC& /* dc */) const
 	{}
 
+	// Returns the bounding rectangle of the shape itself.
 	virtual CRect GetShapeArea() const
 	{
 		return CRect();
 	}
 
+	// Returns the characteristic points of the shape, where the selection handles are drawn.
 	virtual std::vector<CPoint> GetPoints() const
 	{
 		return {};
 	}
 
 private:
+	// Draws a square handle at each characteristic point.
 	void DrawSelector(CDC& dc) const
 	{
 		StockObjectSelector stockObjectSelector(dc, NULL_BRUSH);
@@ -137,6 +156,7 @@ private:
 	DECLARE_SERIAL(Figure)
 };
 
+// A dot: a small circle of a fixed radius around a position.
 class DotFigure : public Figure
 {
 	static constexpr long radius = 10L;
@@ -157,6 +177,7 @@ public:
 
 	virtual long GetDistanceFrom(CPoint point) const override
 	{
+		// The distance from the circle (0 inside it).
 		return (std::max)(Geometry::GetDistance(point, position) - radius, 0L);
 	}
 
@@ -190,6 +211,7 @@ protected:
 	DECLARE_SERIAL(DotFigure)
 };
 
+// A line segment from start to end.
 class LineFigure : public Figure
 {
 	CPoint start, end;
@@ -243,6 +265,8 @@ protected:
 	DECLARE_SERIAL(LineFigure)
 };
 
+// Common base of the figures defined by a bounding rectangle.
+// The rectangle is normalized (left <= right, top <= bottom) on construction.
 class RectangleFigureBase : public Figure
 {
 protected:
@@ -286,6 +310,7 @@ protected:
 	DECLARE_SERIAL(RectangleFigureBase)
 };
 
+// A rectangle.
 class RectangleFigure : public RectangleFigureBase
 {
 public:
@@ -313,6 +338,7 @@ protected:
 	DECLARE_SERIAL(RectangleFigure)
 };
 
+// An ellipse inscribed in the rectangle.
 class EllipseFigure : public RectangleFigureBase
 {
 public:
@@ -340,10 +366,13 @@ protected:
 	DECLARE_SERIAL(EllipseFigure)
 };
 
+// Utilities for collections of figures, including random figures for test data.
 class FigureHelper
 {
+	// The number of figure types GetRandomFigure can create (the cases of its switch).
 	static constexpr long figureKindNumber = 4;
 
+	// The random number engine, seeded once per process.
 	inline static std::mt19937 mt{ std::random_device{}() };
 
 public:
@@ -369,6 +398,7 @@ public:
 	}
 
 private:
+	// Creates a figure of a random type at random positions within the area, with random attributes.
 	static std::unique_ptr<Figure> GetRandomFigure(const CRect& area)
 	{
 		std::unique_ptr<Figure> figure;
@@ -394,11 +424,13 @@ private:
 		return figure;
 	}
 
+	// Returns a random point within the area (including its edges).
 	static CPoint RandomPosition(const CRect& area)
 	{
 		return { RandomValue(area.left, area.right), RandomValue(area.top, area.bottom) };
 	}
 
+	// Returns a uniformly distributed random value in [minimum, maximum].
 	static long RandomValue(long minimum, long maximum)
 	{
 		std::uniform_int_distribution<long> distribution(minimum, maximum);

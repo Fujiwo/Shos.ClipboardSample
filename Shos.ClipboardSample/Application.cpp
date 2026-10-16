@@ -19,9 +19,11 @@ BOOL Application::InitInstance()
 {
 	CWinApp::InitInstance();
 
+	// The application takes ownership of the template.
 	auto pDocTemplate = new CSingleDocTemplate(IDR_MAINFRAME, RUNTIME_CLASS(Document), RUNTIME_CLASS(MainFrame), RUNTIME_CLASS(View));
 	AddDocTemplate(pDocTemplate);
 
+	// Handles the command line (with no arguments, this creates a new empty document and the main window).
 	CCommandLineInfo cmdInfo;
 	ParseCommandLine(cmdInfo);
 
@@ -33,4 +35,5 @@ BOOL Application::InitInstance()
 	return TRUE;
 }
 
+// The one and only application object (required by MFC).
 Application theApp;

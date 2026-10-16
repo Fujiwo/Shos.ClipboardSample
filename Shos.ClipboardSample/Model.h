@@ -7,16 +7,24 @@
 #include "Observer.h"
 #include "Figure.h"
 
+// A change notification sent from the model to its observers, and then to the views
+// (as the pHint of CView::OnUpdate, which is why it derives from CObject).
 struct Hint : public CObject
 {
 	enum class Type
 	{
+		// Figures were added.
 		Added   ,
+		// Figures were removed.
 		Removed ,
+		// figures[0] was replaced with figures[1].
 		Changed ,
+		// Only the appearance changed (e.g. the selection). The document is not modified.
 		ViewOnly
 	};
 
+	// The figures affected by the change, used to calculate the area to redraw.
+	// Valid only during the notification: removed or replaced figures are deleted right after it.
 	std::vector<Figure*> figures;
 	Type				 type;
 
@@ -38,11 +46,15 @@ struct Hint : public CObject
 	DECLARE_DYNAMIC(Hint)
 };
 
+// The data model: owns the figures, and notifies the observers (the document) of changes with a Hint.
 class Model : public Observable<Hint>
 {
+	// The width and the height of the drawing area in logical units.
 	static constexpr LONG size = 2000L;
 
+	// The owned figures, in drawing order.
 	std::vector<Figure*> figures;
+	// The figure under the mouse cursor (not owned), or nullptr.
 	const Figure*		 highlightedFigure = nullptr;
 
 public:
@@ -73,6 +85,7 @@ public:
 		return figures.empty();
 	}
 
+	// Adds the figure. The model takes ownership.
 	void Add(Figure* figure)
 	{
 		figures.push_back(figure);
@@ -98,6 +111,8 @@ public:
 		return true;
 	}
 
+	// Removes and deletes all the figures.
+	// They are deleted after the notification, so that the observers can still use them (e.g. for the area to redraw).
 	void RemoveAll()
 	{
 		if (figures.empty())
@@ -126,6 +141,7 @@ public:
 		Update(hint);
 	}
 
+	// Selects only the given figure.
 	void Select(Figure& figure)
 	{
 		ClearSelected();
@@ -134,16 +150,19 @@ public:
 		Update(hint);
 	}
 
+	// Sets the figure under the mouse cursor. No notification is sent, since the view repaints on every mouse move.
 	void Highlight(const Figure* figure)
 	{
 		highlightedFigure = figure;
 	}
 
+	// Returns the figure under the mouse cursor, or nullptr.
 	const Figure* Highlight() const
 	{
 		return highlightedFigure;
 	}
 
+	// Clears the selection.
 	void UnSelectAll()
 	{
 		ClearSelected();
@@ -151,6 +170,8 @@ public:
 		Update(hint);
 	}
 
+	// Stores all the figures, or loads figures and appends them.
+	// No notification is sent on loading, since MFC redraws the views after opening a file.
 	virtual void Serialize(CArchive& ar)
 	{
 		if (ar.IsStoring()) {
@@ -163,6 +184,7 @@ public:
 		}
 	}
 
+	// Deletes all the figures without notifying the observers (used when MFC resets the document).
 	void Clear()
 	{
 		for (auto* figure : *this)
@@ -171,6 +193,7 @@ public:
 		highlightedFigure = nullptr;
 	}
 
+	// Adds 'count' random figures within the drawing area.
 	void AddDummyData(size_t count)
 	{
 		auto newFigures = FigureHelper::GetRandomFigures(count, GetArea());
@@ -181,6 +204,8 @@ public:
 	}
 
 private:
+	// Reads the number of figures followed by the figures, and returns them (the caller takes ownership).
+	// If reading fails, the figures read so far are deleted and the exception is rethrown.
 	static std::vector<Figure*> Load(CArchive& ar)
 	{
 		std::vector<Figure*> loadedFigures;
@@ -198,6 +223,7 @@ private:
 		return loadedFigures;
 	}
 
+	// Unselects all the figures without notifying the observers.
 	void ClearSelected()
 	{
 		for (auto* figure : figures)
